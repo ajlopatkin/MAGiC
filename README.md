@@ -1,6 +1,7 @@
-# Genetic Circuit Designer - Exported Project
+# MAGiC
+MAGiC Modeling UI and Software - Genetic Circuit Designer
 
-This is an exported copy of your Genetic Circuit Designer project.
+This is the MAGiC (Modular and Adaptive Genetic Information Circuit) web application for designing and simulating genetic circuits.
 
 ## Files Included:
 - app.py - Main Flask application
@@ -10,7 +11,6 @@ This is an exported copy of your Genetic Circuit Designer project.
 - templates/ - HTML templates for the web interface
 - static/ - CSS, JavaScript, and other static assets
 - pyproject.toml - Project dependencies
-- replit.md - Project documentation
 
 ## To Run:
 
@@ -47,5 +47,3 @@ This is an exported copy of your Genetic Circuit Designer project.
 - EEPROM hardware integration
 - LaTeX equation display
 - Export/import functionality
-
-Generated on: 2025-09-15 04:08:12
