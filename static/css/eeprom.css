@@ -2984,3 +2984,187 @@ header.text-center:not(.page-header) .lead {
     transition: opacity 0.2s ease !important;
     will-change: opacity !important;
 }
+
+/* Regulation Type Badges */
+.badge-floating {
+    background: linear-gradient(135deg, #F8B739 0%, #E67E22 100%);
+    color: white;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.badge-internal {
+    background: linear-gradient(135deg, #4ECDC4 0%, #2ECC71 100%);
+    color: white;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.regulation-item {
+    padding: 1rem;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    margin-bottom: 1rem;
+    transition: all 0.3s ease;
+}
+
+.regulation-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+    transform: translateX(4px);
+}
+
+/* Global Parameters Info Card */
+.global-params-info {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--bs-border-color);
+    border-radius: calc(var(--border-radius) - 2px);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    transition: var(--transition);
+}
+
+.global-params-info:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--primary);
+}
+
+.global-params-info h3 {
+    color: var(--primary);
+    font-size: 0.95rem;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+}
+
+.global-params-info p {
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: var(--bs-light);
+    margin-bottom: 1rem;
+}
+
+.global-status {
+    padding: 0.75rem;
+    border-radius: 6px;
+    margin: 1rem 0;
+    font-weight: 600;
+    text-align: center;
+    font-size: 0.9rem;
+}
+
+.global-status.active {
+    background: rgba(46, 204, 113, 0.1);
+    color: #2ECC71;
+    border: 1px solid rgba(46, 204, 113, 0.3);
+}
+
+.global-status.inactive {
+    background: rgba(231, 76, 60, 0.1);
+    color: #E74C3C;
+    border: 1px solid rgba(231, 76, 60, 0.3);
+}
+
+.global-params-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+.global-param-card {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--bs-border-color);
+    border-radius: calc(var(--border-radius) - 2px);
+    padding: 1rem;
+    transition: var(--transition);
+}
+
+.global-param-card:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--primary);
+}
+
+.param-header {
+    margin-bottom: 0.75rem;
+    color: var(--primary);
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.param-value {
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+    color: var(--bs-light);
+    opacity: 0.8;
+}
+
+.param-value strong {
+    color: var(--primary);
+    font-size: 1.1rem;
+    opacity: 1;
+}
+
+.param-effect {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.param-affects {
+    color: var(--bs-light);
+    opacity: 0.6;
+    font-size: 0.8rem;
+    font-style: italic;
+}
+
+/* Connection Port Styling */
+.component-port {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background-color: #444;
+    border: 2px solid #888;
+    cursor: pointer;
+    z-index: 10;
+    transition: all 0.2s ease;
+}
+
+.component-port:hover {
+    background-color: #666;
+    border-color: var(--primary);
+    transform: scale(1.2);
+}
+
+/* Output Port - Top Right for Start components */
+.output-port {
+    top: 8px;
+    right: 8px;
+    background-color: #4CAF50;
+    border-color: #2E7D32;
+}
+
+.output-port:hover {
+    background-color: #66BB6A;
+    border-color: var(--primary);
+}
+
+/* Input Port - Top Right for End components */
+.input-port {
+    top: 8px;
+    right: 8px;
+    background-color: #2196F3;
+    border-color: #1565C0;
+}
+
+.input-port:hover {
+    background-color: #42A5F5;
+    border-color: var(--primary);
+}

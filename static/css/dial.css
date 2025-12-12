@@ -784,7 +784,7 @@
     display: flex;
     flex-direction: column;
     gap: 2rem;
-    padding: 80px 20px 20px;
+    padding: 0 20px 20px;
     max-width: 1400px;
     margin: 0 auto;
     position: relative;
@@ -1058,7 +1058,10 @@ input:checked + .toggle-slider:before {
 .component[data-component="Repressor End"] { background: #920702; }
 .component[data-component="Activator Start"] { background: #6DB079; }
 .component[data-component="Activator End"] { background: #6DB079; }
-.component[data-component="Inducer"] { background: #FF69B4; }
+.component[data-component="Inducer Start"] { background: #14B8A6; }
+.component[data-component="Inducer End"] { background: #0D9488; }
+.component[data-component="Inhibitor Start"] { background: #F97316; }
+.component[data-component="Inhibitor End"] { background: #EA580C; }
 
 .main-content .component .strength-menu {
     display: visible;
@@ -2327,8 +2330,8 @@ input:checked + .toggle-slider:before {
 /* Page header styles - Epic Virtual Mode title */
 .page-header {
     background: var(--header-bg);
-    padding: 3rem 0 4rem 0;
-    margin-bottom: 2rem;
+    padding: 3rem 0 1.5rem 0;
+    margin-bottom: 0;
 }
 
 .page-header h1 {

@@ -21,14 +21,13 @@
             }
         };
     </script>
-    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 </head>
 <body>
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg">
         <div class="container-fluid">
-            <a class="navbar-brand" href="{{ url_for('dial') }}">
+            <a class="navbar-brand" href="{{ url_for('home') }}">
                 MAGiC
             </a>
             <div class="navbar-nav ms-auto">
@@ -67,15 +66,20 @@
                 <!-- Circuit Parameters Section -->
                 <div class="dial-sidebar dial-sidebar-params">
                     <h2>Circuit Parameters</h2>
-                    <div class="dial-toggle">
-                        <label class="switch">
-                            <input type="checkbox" id="enable_dial_params" checked>
-                            <span class="slider"></span>
-                        </label>
-                        <label for="enable_dial_params" class="toggle-label">Apply circuit parameter overrides</label>
-                    </div>
 
                     <form id="dial-form">
+                        <!-- Main Toggle for Global Parameters -->
+                        <div class="toggle-container" style="margin-bottom: 20px; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 8px;">
+                            <div class="dial-toggle" style="display: flex; align-items: center; justify-content: space-between;">
+                                <span class="toggle-label" style="font-weight: 600; color: #B2F35F; font-size: 1rem;">Apply Global Parameters</span>
+                                <label class="switch">
+                                    <input type="checkbox" id="enable_dial_params" checked>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <small style="display: block; margin-top: 8px; color: #9ca3af; font-style: italic;">When enabled, global parameters multiply all component values in the circuit</small>
+                        </div>
+
                         <div class="dial-accordion">
                          <details class="dial-accordion-item" open>
                           <summary class="dial-accordion-header">Global Parameters</summary>
@@ -100,28 +104,6 @@
                                <label for="resource_availability">Resources:</label>
                                <input type="number" id="resource_availability" name="resource_availability" 
                                    min="0.1" max="2.0" step="0.1" value="1.0">
-                              </div>
-                          </div>
-                         </details>
-                         <details class="dial-accordion-item">
-                          <summary class="dial-accordion-header">Regulatory Elements</summary>
-                          <div class="dial-accordion-body">
-                              <div class="dial-grid">
-                               <label for="repressor_strength">Repressor Strength:</label>
-                               <input type="number" id="repressor_strength" name="repressor_strength" 
-                                   min="0.1" max="5.0" step="0.1" value="2.0">
-
-                               <label for="activator_strength">Activator Strength:</label>
-                               <input type="number" id="activator_strength" name="activator_strength" 
-                                   min="0.1" max="5.0" step="0.1" value="3.0">
-
-                               <label for="binding_affinity">Binding Affinity:</label>
-                               <input type="number" id="binding_affinity" name="binding_affinity" 
-                                   min="0.01" max="1.0" step="0.01" value="0.1">
-
-                               <label for="cooperativity">Cooperativity:</label>
-                               <input type="number" id="cooperativity" name="cooperativity" 
-                                   min="0.5" max="3.0" step="0.1" value="2.0">
                               </div>
                           </div>
                          </details>
@@ -337,6 +319,78 @@
                     
                     <div class="component" data-component="Activator End" draggable="true" data-tooltip="Add after the CDS that makes the activator protein.">
                         <div class="component-name">Activator End</div>
+                        <div class="strength-menu">
+                            <div class="strength-option" data-strength="weak">
+                                <div class="strength-indicator" style="background-color: #fca5a5;"></div>
+                                Weak
+                            </div>
+                            <div class="strength-option" data-strength="norm">
+                                <div class="strength-indicator" style="background-color: #fcd34d;"></div>
+                                Normal
+                            </div>
+                            <div class="strength-option" data-strength="strong">
+                                <div class="strength-indicator" style="background-color: #86efac;"></div>
+                                Strong
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="component" data-component="Inducer Start" draggable="true" data-tooltip="Inducer start point - activates transcription when inducer is present.">
+                        <div class="component-name">Inducer Start</div>
+                        <div class="strength-menu">
+                            <div class="strength-option" data-strength="weak">
+                                <div class="strength-indicator" style="background-color: #fca5a5;"></div>
+                                Weak
+                            </div>
+                            <div class="strength-option" data-strength="norm">
+                                <div class="strength-indicator" style="background-color: #fcd34d;"></div>
+                                Normal
+                            </div>
+                            <div class="strength-option" data-strength="strong">
+                                <div class="strength-indicator" style="background-color: #86efac;"></div>
+                                Strong
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="component" data-component="Inducer End" draggable="true" data-tooltip="Inducer end point - connects to promoter to activate with inducer.">
+                        <div class="component-name">Inducer End</div>
+                        <div class="strength-menu">
+                            <div class="strength-option" data-strength="weak">
+                                <div class="strength-indicator" style="background-color: #fca5a5;"></div>
+                                Weak
+                            </div>
+                            <div class="strength-option" data-strength="norm">
+                                <div class="strength-indicator" style="background-color: #fcd34d;"></div>
+                                Normal
+                            </div>
+                            <div class="strength-option" data-strength="strong">
+                                <div class="strength-indicator" style="background-color: #86efac;"></div>
+                                Strong
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="component" data-component="Inhibitor Start" draggable="true" data-tooltip="Inhibitor start point - represses transcription when inhibitor is present.">
+                        <div class="component-name">Inhibitor Start</div>
+                        <div class="strength-menu">
+                            <div class="strength-option" data-strength="weak">
+                                <div class="strength-indicator" style="background-color: #fca5a5;"></div>
+                                Weak
+                            </div>
+                            <div class="strength-option" data-strength="norm">
+                                <div class="strength-indicator" style="background-color: #fcd34d;"></div>
+                                Normal
+                            </div>
+                            <div class="strength-option" data-strength="strong">
+                                <div class="strength-indicator" style="background-color: #86efac;"></div>
+                                Strong
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="component" data-component="Inhibitor End" draggable="true" data-tooltip="Inhibitor end point - connects to promoter to repress with inhibitor.">
+                        <div class="component-name">Inhibitor End</div>
                         <div class="strength-menu">
                             <div class="strength-option" data-strength="weak">
                                 <div class="strength-indicator" style="background-color: #fca5a5;"></div>

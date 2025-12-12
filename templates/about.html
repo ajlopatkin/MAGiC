@@ -7,196 +7,383 @@
     <link href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="{{ url_for('static', filename='css/styles.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/dial.css') }}" rel="stylesheet">
     <link href="{{ url_for('static', filename='css/about.css') }}" rel="stylesheet">
 </head>
 <body>
-    <!-- Header -->
-    <header>
-        <h1>About Genetic Circuit Designer</h1>
-        <nav>
-            <a href="{{ url_for('dial') }}">Virtual Mode</a>
-            <a href="{{ url_for('eeprom') }}">Board Mode</a>
-            <a href="{{ url_for('about') }}">About</a>
-        </nav>
-    </header>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('home') }}">
+                MAGiC
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="{{ url_for('dial') }}">Virtual Mode</a>
+                <a class="nav-link" href="{{ url_for('eeprom') }}">Board Mode</a>
+                <a class="nav-link active" href="{{ url_for('about') }}">About</a>
+            </div>
+        </div>
+    </nav>
 
-    <!-- Main Content -->
-    <main class="container">
-        <!-- Project Overview -->
-        <section class="mb-5">
-            <h2>Project Overview</h2>
-            <div class="row">
-                <div class="col-md-8">
-                    <p class="lead">
-                        The Genetic Circuit Designer is an advanced web-based platform for designing, simulating, and analyzing complex genetic circuits. 
-                        This application bridges the gap between theoretical circuit design and physical hardware implementation.
+    <div class="container">
+        <!-- Header -->
+        <header class="page-header text-center mb-5">
+            <h1 class="display-1 fw-bold mb-3">About MAGiC</h1>
+            <p class="lead fs-3">Modular Approach to Genetic Circuit Design</p>
+        </header>
+
+        <!-- Project Overview Section -->
+        <section class="about-section mb-5">
+            <div class="row align-items-center mb-5">
+                <div class="col-lg-8">
+                    <h2 class="section-heading mb-4">
+                        <i class="fas fa-rocket me-3"></i>
+                        Project Overview
+                    </h2>
+                    <p class="lead-text mb-4">
+                        The <strong>Genetic Circuit Designer</strong> is a cutting-edge web platform that revolutionizes 
+                        genetic circuit design, simulation, and analysis. Seamlessly bridging theory and hardware implementation, 
+                        it empowers researchers and educators in synthetic biology.
                     </p>
-                    
-                    <h3>Key Features</h3>
-                    <ul class="list-unstyled">
-                        <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>
-                            <strong>Drag-and-Drop Interface:</strong> Intuitive component placement on virtual circuit boards</li>
-                        <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>
-                            <strong>Advanced Simulation:</strong> Comprehensive genetic circuit modeling with regulatory networks</li>
-                        <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>
-                            <strong>Hardware Integration:</strong> Direct interface with physical Cell Board-based circuit boards</li>
-                        <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>
-                            <strong>Parameter Control:</strong> Fine-tune circuit parameters in real-time with dial mode</li>
-                        <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>
-                            <strong>Comprehensive Analysis:</strong> Support for complex regulatory interactions and floating regulators</li>
-                    </ul>
+                    <div class="feature-cards-grid">
+                        <div class="mini-feature-card">
+                            <i class="fas fa-mouse-pointer feature-card-icon"></i>
+                            <h5>Drag-and-Drop</h5>
+                            <p>Intuitive component placement</p>
+                        </div>
+                        <div class="mini-feature-card">
+                            <i class="fas fa-brain feature-card-icon"></i>
+                            <h5>Advanced Simulation</h5>
+                            <p>Comprehensive modeling</p>
+                        </div>
+                        <div class="mini-feature-card">
+                            <i class="fas fa-microchip feature-card-icon"></i>
+                            <h5>Hardware Integration</h5>
+                            <p>Physical circuit interface</p>
+                        </div>
+                        <div class="mini-feature-card">
+                            <i class="fas fa-sliders-h feature-card-icon"></i>
+                            <h5>Parameter Control</h5>
+                            <p>Real-time fine-tuning</p>
+                        </div>
+                    </div>
                 </div>
+                <div class="col-lg-4">
+                    <div class="stats-card">
+                        <div class="stat-item">
+                            <div class="stat-icon">
+                                <i class="fas fa-dna"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h3 class="stat-number">100+</h3>
+                                <p class="stat-label">Components</p>
+                            </div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-icon">
+                                <i class="fas fa-project-diagram"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h3 class="stat-number">∞</h3>
+                                <p class="stat-label">Possibilities</p>
+                            </div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-icon">
+                                <i class="fas fa-flask"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h3 class="stat-number">2</h3>
+                                <p class="stat-label">Modes</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Technology Stack Section -->
+        <section class="about-section mb-5">
+            <h2 class="section-heading text-center mb-5">
+                <i class="fas fa-code me-3"></i>
+                Technology Stack
+            </h2>
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <div class="tech-stack-card">
+                        <div class="tech-stack-header">
+                            <i class="fas fa-server"></i>
+                            <h3>Backend</h3>
+                        </div>
+                        <div class="tech-stack-body">
+                            <div class="tech-item">
+                                <span class="tech-bullet"></span>
+                                <div>
+                                    <strong>Flask</strong>
+                                    <p>Web application framework</p>
+                                </div>
+                            </div>
+                            <div class="tech-item">
+                                <span class="tech-bullet"></span>
+                                <div>
+                                    <strong>NumPy & SciPy</strong>
+                                    <p>Scientific computing & ODE solving</p>
+                                </div>
+                            </div>
+                            <div class="tech-item">
+                                <span class="tech-bullet"></span>
+                                <div>
+                                    <strong>Matplotlib</strong>
+                                    <p>Dynamic plot generation</p>
+                                </div>
+                            </div>
+                            <div class="tech-item">
+                                <span class="tech-bullet"></span>
+                                <div>
+                                    <strong>Advanced Ontology</strong>
+                                    <p>Circuit modeling engine</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="tech-stack-card">
+                        <div class="tech-stack-header">
+                            <i class="fas fa-desktop"></i>
+                            <h3>Frontend</h3>
+                        </div>
+                        <div class="tech-stack-body">
+                            <div class="tech-item">
+                                <span class="tech-bullet"></span>
+                                <div>
+                                    <strong>HTML5 & CSS3</strong>
+                                    <p>Modern web standards</p>
+                                </div>
+                            </div>
+                            <div class="tech-item">
+                                <span class="tech-bullet"></span>
+                                <div>
+                                    <strong>JavaScript ES6+</strong>
+                                    <p>Interactive user interface</p>
+                                </div>
+                            </div>
+                            <div class="tech-item">
+                                <span class="tech-bullet"></span>
+                                <div>
+                                    <strong>Bootstrap 5</strong>
+                                    <p>Responsive design framework</p>
+                                </div>
+                            </div>
+                            <div class="tech-item">
+                                <span class="tech-bullet"></span>
+                                <div>
+                                    <strong>Font Awesome</strong>
+                                    <p>Icon library</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- How It Works Section -->
+        <section class="about-section mb-5">
+            <h2 class="section-heading text-center mb-5">
+                <i class="fas fa-cogs me-3"></i>
+                How It Works
+            </h2>
+            <div class="workflow-container">
+                <div class="workflow-step-card">
+                    <div class="workflow-number">01</div>
+                    <div class="workflow-icon">
+                        <i class="fas fa-mouse-pointer"></i>
+                    </div>
+                    <h3>Design</h3>
+                    <p>Drag and drop genetic components onto the circuit board to create your desired circuit topology with ease.</p>
+                </div>
+                
+                <div class="workflow-arrow">
+                    <i class="fas fa-arrow-right"></i>
+                </div>
+                
+                <div class="workflow-step-card">
+                    <div class="workflow-number">02</div>
+                    <div class="workflow-icon">
+                        <i class="fas fa-sliders-h"></i>
+                    </div>
+                    <h3>Configure</h3>
+                    <p>Fine-tune component parameters and regulatory interactions using the intuitive dial mode interface.</p>
+                </div>
+                
+                <div class="workflow-arrow">
+                    <i class="fas fa-arrow-right"></i>
+                </div>
+                
+                <div class="workflow-step-card">
+                    <div class="workflow-number">03</div>
+                    <div class="workflow-icon">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <h3>Simulate</h3>
+                    <p>Run advanced simulations to analyze circuit dynamics and regulatory network behavior over time.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Research Impact Section -->
+        <section class="about-section mb-5">
+            <h2 class="section-heading text-center mb-5">
+                <i class="fas fa-lightbulb me-3"></i>
+                Research Impact
+            </h2>
+            <div class="row g-4">
                 <div class="col-md-4">
-                    <div class="card">
-                        <div class="card-body text-center">
-                            <i class="fas fa-dna fa-4x text-primary mb-3"></i>
-                            <h5>Genetic Engineering</h5>
-                            <p class="text-muted">Advanced tools for synthetic biology research and education</p>
+                    <div class="impact-card">
+                        <div class="impact-icon-wrapper">
+                            <i class="fas fa-flask"></i>
                         </div>
+                        <h3>Advancing Synthetic Biology</h3>
+                        <p>
+                            This platform represents a significant advancement in synthetic biology tools, providing researchers 
+                            and educators with comprehensive capabilities for genetic circuit design and analysis. The integration 
+                            of theoretical modeling with physical hardware bridges the gap between computational biology and 
+                            experimental validation.
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    <div class="impact-card">
+                        <div class="impact-icon-wrapper">
+                            <i class="fas fa-graduation-cap"></i>
+                        </div>
+                        <h3>Educational Applications</h3>
+                        <p>
+                            The intuitive interface makes complex genetic engineering concepts accessible to students and 
+                            researchers at all levels. Real-time visualization of circuit dynamics helps build intuition 
+                            about genetic regulatory networks and their behavior.
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    <div class="impact-card">
+                        <div class="impact-icon-wrapper">
+                            <i class="fas fa-rocket"></i>
+                        </div>
+                        <h3>Future Development</h3>
+                        <p>
+                            Ongoing development focuses on expanding component libraries, improving simulation accuracy, 
+                            and adding support for more complex regulatory mechanisms including epigenetic modifications 
+                            and multi-cellular interactions.
+                        </p>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- Technology Stack -->
-        <section class="mb-5">
-            <h2>Technology Stack</h2>
-            <div class="row">
-                <div class="col-md-6">
-                    <h4><i class="fas fa-server me-2"></i>Backend</h4>
-                    <ul>
-                        <li><strong>Flask:</strong> Web application framework</li>
-                        <li><strong>NumPy & SciPy:</strong> Scientific computing and ODE solving</li>
-                        <li><strong>Matplotlib:</strong> Dynamic plot generation</li>
-                        <li><strong>Version 15.3 Ontology:</strong> Advanced circuit modeling engine</li>
-                    </ul>
-                </div>
-                <div class="col-md-6">
-                    <h4><i class="fas fa-desktop me-2"></i>Frontend</h4>
-                    <ul>
-                        <li><strong>HTML5 & CSS3:</strong> Modern web standards</li>
-                        <li><strong>JavaScript ES6+:</strong> Interactive user interface</li>
-                        <li><strong>Bootstrap 5:</strong> Responsive design framework</li>
-                        <li><strong>Font Awesome:</strong> Icon library</li>
-                    </ul>
-                </div>
-            </div>
-        </section>
-
-        <!-- How It Works -->
-        <section class="mb-5">
-            <h2>How It Works</h2>
-            <div class="row">
-                <div class="col-md-4 mb-3">
-                    <div class="card h-100">
-                        <div class="card-body text-center">
-                            <i class="fas fa-mouse-pointer fa-3x text-primary mb-3"></i>
-                            <h5>1. Design</h5>
-                            <p>Drag and drop genetic components onto the circuit board to create your desired circuit topology.</p>
+        <!-- Development Team Section -->
+        <section class="about-section mb-5">
+            <h2 class="section-heading text-center mb-5">
+                <i class="fas fa-users me-3"></i>
+                Development Team
+            </h2>
+            <div class="team-grid">
+                <div class="team-card">
+                    <div class="team-image-wrapper">
+                        <img src="{{ url_for('static', filename='images/lopatkin.jpeg') }}" alt="Dr. Allison J. Lopatkin">
+                        <div class="team-overlay">
+                            <div class="team-social">
+                                <a href="#" class="team-social-link"><i class="fas fa-envelope"></i></a>
+                                <a href="#" class="team-social-link"><i class="fab fa-linkedin"></i></a>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div class="col-md-4 mb-3">
-                    <div class="card h-100">
-                        <div class="card-body text-center">
-                            <i class="fas fa-sliders-h fa-3x text-primary mb-3"></i>
-                            <h5>2. Configure</h5>
-                            <p>Use dial mode to fine-tune component parameters and regulatory interactions for optimal performance.</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4 mb-3">
-                    <div class="card h-100">
-                        <div class="card-body text-center">
-                            <i class="fas fa-chart-line fa-3x text-primary mb-3"></i>
-                            <h5>3. Simulate</h5>
-                            <p>Run advanced simulations to analyze circuit dynamics and regulatory network behavior over time.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Research Impact -->
-        <section class="mb-5">
-            <h2>Research Impact</h2>
-            <div class="row">
-                <div class="col-12">
-                    <div class="card">
-                        <div class="card-body">
-                            <h5><i class="fas fa-flask me-2"></i>Advancing Synthetic Biology</h5>
-                            <p>
-                                This platform represents a significant advancement in synthetic biology tools, providing researchers 
-                                and educators with comprehensive capabilities for genetic circuit design and analysis. The integration 
-                                of theoretical modeling with physical hardware bridges the gap between computational biology and 
-                                experimental validation.
-                            </p>
-                            
-                            <h5><i class="fas fa-graduation-cap me-2"></i>Educational Applications</h5>
-                            <p>
-                                The intuitive interface makes complex genetic engineering concepts accessible to students and 
-                                researchers at all levels. The real-time visualization of circuit dynamics helps build intuition 
-                                about genetic regulatory networks and their behavior.
-                            </p>
-                            
-                            <h5><i class="fas fa-cog me-2"></i>Future Development</h5>
-                            <p>
-                                Ongoing development focuses on expanding component libraries, improving simulation accuracy, 
-                                and adding support for more complex regulatory mechanisms including epigenetic modifications 
-                                and multi-cellular interactions.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Development Team -->
-        <section>
-            <h2>Development Team</h2>
-            <div class="team">
-                <div class="member">
-                    <img src="{{ url_for('static', filename='images/lopatkin.jpeg') }}" alt="Dr. Allison J. Lopatkin">
-                    <div class="member-content">
+                    <div class="team-info">
                         <h3>Dr. Allison J. Lopatkin</h3>
-                        <p>Principal Investigator</p>
+                        <p class="team-role">Principal Investigator</p>
+                        <p class="team-desc">Leading synthetic biology research</p>
                     </div>
                 </div>
-                <div class="member">
-                    <img src="{{ url_for('static', filename='images/elizabeth.jpeg') }}" alt="Elizabeth Martin">
-                    <div class="member-content">
+                
+                <div class="team-card">
+                    <div class="team-image-wrapper">
+                        <img src="{{ url_for('static', filename='images/elizabeth.jpeg') }}" alt="Elizabeth Martin">
+                        <div class="team-overlay">
+                            <div class="team-social">
+                                <a href="#" class="team-social-link"><i class="fas fa-envelope"></i></a>
+                                <a href="#" class="team-social-link"><i class="fab fa-linkedin"></i></a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="team-info">
                         <h3>Elizabeth Martin</h3>
-                        <p>Hardware Development</p>
+                        <p class="team-role">Hardware Development</p>
+                        <p class="team-desc">Physical circuit board design</p>
                     </div>
                 </div>
-                <div class="member">
-                    <img src="{{ url_for('static', filename='images/jordan.png') }}" alt="Jordan Blair">
-                    <div class="member-content">
+                
+                <div class="team-card">
+                    <div class="team-image-wrapper">
+                        <img src="{{ url_for('static', filename='images/jordan.png') }}" alt="Jordan Blair">
+                        <div class="team-overlay">
+                            <div class="team-social">
+                                <a href="#" class="team-social-link"><i class="fas fa-envelope"></i></a>
+                                <a href="#" class="team-social-link"><i class="fab fa-linkedin"></i></a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="team-info">
                         <h3>Jordan Blair</h3>
-                        <p>Modeling & Simulation</p>
+                        <p class="team-role">Modeling & Simulation</p>
+                        <p class="team-desc">Circuit analysis algorithms</p>
                     </div>
                 </div>
-                <div class="member">
-                    <img src="{{ url_for('static', filename='images/kiran.jpeg') }}" alt="Kiran Raj Paramasivam">
-                    <div class="member-content">
+                
+                <div class="team-card">
+                    <div class="team-image-wrapper">
+                        <img src="{{ url_for('static', filename='images/kiran.jpeg') }}" alt="Kiran Raj Paramasivam">
+                        <div class="team-overlay">
+                            <div class="team-social">
+                                <a href="#" class="team-social-link"><i class="fas fa-envelope"></i></a>
+                                <a href="#" class="team-social-link"><i class="fab fa-linkedin"></i></a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="team-info">
                         <h3>Kiran Raj Paramasivam</h3>
-                        <p>Software & UI Development</p>
+                        <p class="team-role">Software & UI Development</p>
+                        <p class="team-desc">Full-stack implementation</p>
                     </div>
                 </div>
-                <div class="member">
-                    <img src="{{ url_for('static', filename='images/chauner.JPG') }}" alt="Chauner Clausing">
-                    <div class="member-content">
+                
+                <div class="team-card">
+                    <div class="team-image-wrapper">
+                        <img src="{{ url_for('static', filename='images/chauner.JPG') }}" alt="Chauner Clausing">
+                        <div class="team-overlay">
+                            <div class="team-social">
+                                <a href="#" class="team-social-link"><i class="fas fa-envelope"></i></a>
+                                <a href="#" class="team-social-link"><i class="fab fa-linkedin"></i></a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="team-info">
                         <h3>Chauner Clausing</h3>
-                        <p>Modeling & UI Development</p>
+                        <p class="team-role">Modeling & UI Development</p>
+                        <p class="team-desc">Interface design & analysis</p>
                     </div>
                 </div>
             </div>
         </section>
-    </main>
+    </div>
 
     <!-- Footer -->
-    <footer>
-        <p>&copy; 2025 Genetic Circuit Designer. Advancing synthetic biology through innovative computational tools.</p>
+    <footer class="site-footer">
+        <div class="container text-center">
+            <p class="mb-0">&copy; 2025 Genetic Circuit Designer. Advancing synthetic biology through innovative computational tools.</p>
+        </div>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

@@ -29,32 +29,46 @@ class Component:
         self.is_regulator = self.type in ("activator", "repressor", "inducer", "inhibitor")
         if self.is_regulator:
             self.is_floating = self.label.startswith("floating_")
-            # Extract position from label like "repressor_start_2" or "repressor_start2"
+            # Extract position from label - handles multiple formats:
+            # SOFTWARE: "repressor_start_2" (type_position_gene)
+            # SOFTWARE: "repressor_start2" (type_position+gene)
+            # HARDWARE: "repressor_b_start" (type_gene_position)
             parts = self.label.lower().split("_")
             if len(parts) >= 2:
-                # Handle both formats: "repressor_start_2" and "repressor_start2"
-                if len(parts) >= 3:
-                    # Format: repressor_start_2 (gene number is separate)
-                    position_part = parts[1]
-                    gene_part = parts[2]
-                else:
-                    # Format: repressor_start2 (gene number attached to position)
-                    position_part = parts[1]
-                    gene_part = ""
+                # Determine format by checking which part contains start/end
+                position_part = None
+                gene_part = ""
                 
-                # Extract position
-                if position_part.startswith("start"):
-                    self.position = "start"
-                    if not gene_part:  # Extract from combined format
-                        gene_part = position_part[len("start"):]
-                elif position_part.startswith("end"):
-                    self.position = "end"
-                    if not gene_part:  # Extract from combined format
-                        gene_part = position_part[len("end"):]
+                # Check each part for start/end
+                for i, part in enumerate(parts[1:], 1):
+                    # Exact match for "start" or "end" (HARDWARE format: repressor_b_start)
+                    if part == "start" or part == "end":
+                        position_part = part
+                        # Gene identifier is the part before position
+                        if i > 1:
+                            gene_part = parts[i-1]  # "b" in "repressor_b_start"
+                        # Or parts after position
+                        elif i < len(parts) - 1:
+                            gene_part = parts[i+1]  # "2" in "repressor_start_2"
+                        break
+                    # Part starts with "start" or "end" (SOFTWARE format: repressor_start2)
+                    elif part.startswith("start"):
+                        position_part = "start"
+                        gene_part = part[len("start"):]  # "2" in "start2"
+                        break
+                    elif part.startswith("end"):
+                        position_part = "end"
+                        gene_part = part[len("end"):]  # "2" in "end2"
+                        break
+                
+                # Set position
+                if position_part in ["start", "end"]:
+                    self.position = position_part
                 else:
                     self.position = None
                     
                 # Create regulator key
+                # For both formats, key is "regulator_type_gene"
                 if self.position and gene_part:
                     self.reg_key = f"{parts[0]}_{gene_part}"
                 elif self.position:
@@ -85,17 +99,19 @@ class Component:
         if lc.startswith("terminator"):
             return "terminator"
         
-        # Check for regulator patterns: activator_start_2, repressor_end_3, etc.
+        # Check for regulator patterns: 
+        # - activator_start_2, repressor_end_3 (type_position_gene)
+        # - repressor_b_start, activator_a_end (type_gene_position)
         parts = lc.split("_")
         if len(parts) >= 2:
             reg_type = parts[0]
-            position_part = parts[1]
             
-            # Handle both formats: "repressor_start_2" and "repressor_start2"
-            if position_part.startswith("start") or position_part.startswith("end"):
-                position = "start" if position_part.startswith("start") else "end"
-                if reg_type in ("activator", "repressor", "inducer", "inhibitor"):
-                    return reg_type
+            # Check if this is a known regulator type
+            if reg_type in ("activator", "repressor", "inducer", "inhibitor"):
+                # Check if any part contains "start" or "end"
+                for part in parts[1:]:
+                    if part in ("start", "end") or part.startswith("start") or part.startswith("end"):
+                        return reg_type
         return "misc"
 
     def to_dict(self):

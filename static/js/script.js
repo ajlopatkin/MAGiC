@@ -1,6 +1,6 @@
 // Simplified Genetic Circuit Designer JavaScript without Gene Tabs System
 
-// Constants
+// ===== REGULATOR TYPES CONSTANT =====
 const REGULATOR_TYPES = ['Repressor Start', 'Repressor End', 'Activator Start', 'Activator End', 
                         'Inducer Start', 'Inducer End', 'Inhibitor Start', 'Inhibitor End'];
 
@@ -13,6 +13,8 @@ document.addEventListener('DOMContentLoaded', function() {
         componentCounts: {}, // For auto-numbering: promoter_1, promoter_2, etc.
         isDragging: false,
         draggedElement: null,
+        parameterDefaults: null,  // Will be loaded from API
+        parameterRanges: null,
         // Cellboard format matching backend expectations
         cellboard: {
             'Promoter': [],
@@ -29,6 +31,22 @@ document.addEventListener('DOMContentLoaded', function() {
             'Inhibitor End': []
         }
     };
+    
+    // Fetch parameter defaults from backend
+    async function loadParameterDefaults() {
+        try {
+            const response = await fetch('/api/parameter_defaults');
+            const data = await response.json();
+            state.parameterDefaults = data.defaults;
+            state.parameterRanges = data.ranges;
+            console.log('✓ Loaded parameter defaults from constants.py:', data);
+        } catch (error) {
+            console.error('Failed to load parameter defaults:', error);
+        }
+    }
+    
+    // Load defaults on page load
+    loadParameterDefaults();
 
     // DOM elements
     const components = document.querySelectorAll('.component');
@@ -49,9 +67,9 @@ document.addEventListener('DOMContentLoaded', function() {
         setupGlobalClicks();
         setupDragModeToggle();
         updateSelectionStatus(); // Initialize status
+        initializeConnectorSystem(); // Initialize connector system
         console.log('Simplified circuit designer initialized successfully');
     }
-
     // Setup global click handler to clear selection
     function setupGlobalClicks() {
         document.addEventListener('click', function(e) {
@@ -136,55 +154,111 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Cell board interaction
-    function setupCells() {
-        cells.forEach(cell => {
-            // Click to place selected component
-            cell.addEventListener('click', function(e) {
-                if (state.currentComponent) {
-                    const x = parseInt(this.dataset.x);
-                    const y = parseInt(this.dataset.y);
-                    
-                    // Check if cell is already occupied
-                    if (this.classList.contains('filled')) {
-                        removeComponent(x, y);
-                    } else {
-                        // Place the component - use 'norm' as default strength when strength menus are commented out
-                        const strength = state.currentStrength || 'norm';
-                        placeComponent(x, y, state.currentComponent, strength);
-                        
-                                // Clear selection after placing
-                        clearComponentSelection();
-                        state.currentComponent = null;
-                        state.currentStrength = 'norm';
-                        updateSelectionStatus();
-                    }
-                } else {
-                    // No component selected - show message
-                    showSelectionHint();
-                }
-            });
+   // Cell board interaction
+function setupCells() {
+    const cells = document.querySelectorAll('.cell');
+    
+    cells.forEach(cell => {
+        // Click to place selected component
+        cell.addEventListener('click', function(e) {
+            console.log(`Cell clicked at (${this.dataset.x}, ${this.dataset.y})`);
+            console.log(`Current selected component: ${state.currentComponent}`);
             
-            // Right-click to remove component
-            cell.addEventListener('contextmenu', function(e) {
-                e.preventDefault();
+            if (state.currentComponent && state.currentComponent !== 'undefined') {
                 const x = parseInt(this.dataset.x);
                 const y = parseInt(this.dataset.y);
-                removeComponent(x, y);
-            });
+                
+                console.log(`Placing component ${state.currentComponent} at (${x}, ${y})`);
+                
+                // Check if cell is already occupied
+                if (this.classList.contains('has-component')) {
+                    // Remove existing component first (including connector system cleanup)
+                    removeComponentFromCell(this);
+                }
+                
+                // Place the component using the updated logic
+                const baseType = state.currentComponent.toLowerCase().replace(' ', '_');
+                if (!state.componentCounts[baseType]) {
+                    state.componentCounts[baseType] = 1;
+                } else {
+                    state.componentCounts[baseType]++;
+                }
+                
+                const component = {
+                    type: state.currentComponent,
+                    number: state.componentCounts[baseType],
+                    strength: state.currentStrength || 'norm',
+                    x: x,
+                    y: y,
+                    id: `${baseType}_${x}_${y}_${Date.now()}`,
+                    customName: null,
+                    parameters: {}
+                };
+                
+                state.placedComponents.push(component);
+                
+                // Also add to cellboard for backend compatibility and sync
+                if (!state.cellboard[component.type]) {
+                    state.cellboard[component.type] = [];
+                }
+                state.cellboard[component.type].push(component);
+                
+                console.log('Component placed:', component);
+                console.log('Added to cellboard[' + component.type + ']:', state.cellboard[component.type]);
+                
+                // Update visual and register with connector system
+                updateCellDisplay(x, y, component.type, component.number, component.customName, component);
+                
+                // Register component with connector system if it's a regulator
+                if (REGULATOR_TYPES.includes(component.type)) {
+                    console.log(`Component is a regulator type: ${component.type}`);
+                    const connectorComp = registerComponentWithConnectorSystem(component, this);
+                    if (connectorComp) {
+                        console.log(`Connector component created successfully with ${connectorComp.inputPorts.length} input ports and ${connectorComp.outputPorts.length} output ports`);
+                        
+                        // Verify ports are visible in DOM
+                        setTimeout(() => {
+                            const ports = this.querySelectorAll('.component-port');
+                            console.log(`DOM verification: Found ${ports.length} port(s) in cell:`, ports);
+                            ports.forEach((port, idx) => {
+                                const rect = port.getBoundingClientRect();
+                                console.log(`  Port ${idx}: ${port.className}, position: (${rect.left}, ${rect.top}), size: ${rect.width}x${rect.height}`);
+                                console.log(`  Port ${idx} data-drag:`, port.getAttribute('data-drag'));
+                            });
+                        }, 100);
+                    } else {
+                        console.warn(`Failed to create connector component for ${component.type}`);
+                    }
+                } else {
+                    console.log(`Component is NOT a regulator type: ${component.type}`);
+                }
+                
+                // Clear selection after placing
+                clearComponentSelection();
+                state.currentComponent = null;
+                state.currentStrength = 'norm';
+                updateSelectionStatus();
+            } else {
+                console.log('No component selected');
+                // No component selected - show message
+                showSelectionHint();
+            }
         });
-    }
+        
+        // Right-click to remove component
+        cell.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+            const x = parseInt(this.dataset.x);
+            const y = parseInt(this.dataset.y);
+            removeComponent(x, y);
+        });
+    });
+}
 
     // Dynamic parameter section creation
     function createDynamicParameterSection(componentType, componentNumber) {
         const dialAccordion = document.querySelector('.dial-accordion');
         if (!dialAccordion) return;
-        
-        // Skip parameter sections for regulator components (they use constants from constants.py)
-        if (REGULATOR_TYPES.includes(componentType)) {
-            console.log(`Skipping parameter section for regulator component: ${componentType}`);
-            return;
-        }
         
         // Create unique ID for this component instance
         const baseType = componentType.toLowerCase().replace(' ', '_');
@@ -227,9 +301,26 @@ document.addEventListener('DOMContentLoaded', function() {
             input.step = param.step;
             input.value = param.defaultValue;
             
+            // Store default value for reset functionality
+            input.setAttribute('data-default-value', param.defaultValue);
+            
+            // Store parameter category for global mode updates
+            if (param.id.includes('strength') || param.id.includes('promoter')) {
+                input.setAttribute('data-param-type', 'transcription');
+            } else if (param.id.includes('translation') || param.id.includes('rbs')) {
+                input.setAttribute('data-param-type', 'translation');
+            } else if (param.id.includes('degradation')) {
+                input.setAttribute('data-param-type', 'degradation');
+            }
+            
             if (param.title) {
                 input.title = param.title;
             }
+            
+            // Add change listener for synchronization
+            input.addEventListener('input', function() {
+                syncRegulatorPair(componentType, componentNumber, param.id, parseFloat(this.value));
+            });
             
             grid.appendChild(label);
             grid.appendChild(input);
@@ -247,51 +338,50 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Get parameters for a specific component type
     function getComponentParameters(componentType, componentNumber) {
-        // Skip parameters for regulator components
-        if (REGULATOR_TYPES.includes(componentType)) {
-            return [];
-        }
-        
         const baseType = componentType.toLowerCase().replace(' ', '_');
         const num = componentNumber;
+        
+        // Get defaults from state (loaded from API) or use fallback
+        const defaults = state.parameterDefaults || {};
+        const ranges = state.parameterRanges || {};
         
         const commonParams = {
             'Promoter': [
                 {
                     id: `promoter${num}_strength`,
                     label: 'Promoter Strength:',
-                    min: 0.1,
-                    max: 5.0,
+                    min: ranges.strength?.[0] || 0.1,
+                    max: ranges.strength?.[1] || 5.0,
                     step: 0.1,
-                    defaultValue: 1.0
+                    defaultValue: defaults.promoter_strength || 5.0
                 }
             ],
             'RBS': [
                 {
                     id: `rbs${num}_efficiency`,
                     label: 'RBS Efficiency:',
-                    min: 0.1,
-                    max: 2.0,
+                    min: ranges.efficiency?.[0] || 0.1,
+                    max: ranges.efficiency?.[1] || 2.0,
                     step: 0.1,
-                    defaultValue: 1.0
+                    defaultValue: defaults.rbs_efficiency || 1.0
                 }
             ],
             'CDS': [
                 {
                     id: `cds${num}_translation_rate`,
                     label: 'CDS Translation Rate:',
-                    min: 1.0,
-                    max: 20.0,
+                    min: ranges.translation_rate?.[0] || 1.0,
+                    max: ranges.translation_rate?.[1] || 20.0,
                     step: 0.5,
-                    defaultValue: 5.0
+                    defaultValue: defaults.cds_translation_rate || 7.0
                 },
                 {
                     id: `cds${num}_degradation_rate`,
                     label: 'CDS Degradation Rate:',
-                    min: 0.01,
-                    max: 1.0,
+                    min: ranges.degradation_rate?.[0] || 0.01,
+                    max: ranges.degradation_rate?.[1] || 1.0,
                     step: 0.01,
-                    defaultValue: 0.1
+                    defaultValue: defaults.cds_degradation_rate || 1.0
                 },
                 {
                     id: `protein${num}_initial_conc`,
@@ -299,7 +389,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     min: 0.0,
                     max: 2.0,
                     step: 0.05,
-                    defaultValue: 0.1,
+                    defaultValue: defaults.cds_init_conc || 0.0,
                     title: 'Starting concentration (µM) - affects oscillation dynamics'
                 }
             ],
@@ -310,7 +400,239 @@ document.addEventListener('DOMContentLoaded', function() {
                     min: 0.1,
                     max: 1.0,
                     step: 0.01,
-                    defaultValue: 0.99
+                    defaultValue: defaults.terminator_efficiency || 0.99
+                }
+            ],
+            'Repressor Start': [
+                {
+                    id: `repressor${num}_Kr`,
+                    label: 'Repression Constant (Kr):',
+                    min: 0.01,
+                    max: 2.0,
+                    step: 0.01,
+                    defaultValue: defaults.repressor_Kr || 0.35,
+                    title: 'Lower Kr = stronger repression'
+                },
+                {
+                    id: `repressor${num}_n`,
+                    label: 'Cooperativity (n):',
+                    min: 1,
+                    max: 6,
+                    step: 1,
+                    defaultValue: defaults.repressor_n || 2,
+                    title: 'Hill coefficient - higher = sharper response'
+                },
+                {
+                    id: `repressor${num}_concentration`,
+                    label: 'Initial Concentration:',
+                    min: 0.0,
+                    max: 5.0,
+                    step: 0.1,
+                    defaultValue: 1.0,
+                    title: 'For floating repressors'
+                }
+            ],
+            'Repressor End': [
+                {
+                    id: `repressor${num}_Kr`,
+                    label: 'Repression Constant (Kr):',
+                    min: 0.01,
+                    max: 2.0,
+                    step: 0.01,
+                    defaultValue: 0.35,
+                    title: 'Lower Kr = stronger repression'
+                },
+                {
+                    id: `repressor${num}_n`,
+                    label: 'Cooperativity (n):',
+                    min: 1,
+                    max: 6,
+                    step: 1,
+                    defaultValue: 2,
+                    title: 'Hill coefficient - higher = sharper response'
+                },
+                {
+                    id: `repressor${num}_concentration`,
+                    label: 'Initial Concentration:',
+                    min: 0.0,
+                    max: 5.0,
+                    step: 0.1,
+                    defaultValue: 1.0,
+                    title: 'For floating repressors'
+                }
+            ],
+            'Activator Start': [
+                {
+                    id: `activator${num}_Ka`,
+                    label: 'Activation Constant (Ka):',
+                    min: 0.01,
+                    max: 2.0,
+                    step: 0.01,
+                    defaultValue: 0.4,
+                    title: 'Lower Ka = stronger activation'
+                },
+                {
+                    id: `activator${num}_n`,
+                    label: 'Cooperativity (n):',
+                    min: 1,
+                    max: 6,
+                    step: 1,
+                    defaultValue: 2,
+                    title: 'Hill coefficient - higher = sharper response'
+                },
+                {
+                    id: `activator${num}_concentration`,
+                    label: 'Initial Concentration:',
+                    min: 0.0,
+                    max: 5.0,
+                    step: 0.1,
+                    defaultValue: 1.0,
+                    title: 'For floating activators'
+                }
+            ],
+            'Activator End': [
+                {
+                    id: `activator${num}_Ka`,
+                    label: 'Activation Constant (Ka):',
+                    min: 0.01,
+                    max: 2.0,
+                    step: 0.01,
+                    defaultValue: 0.4,
+                    title: 'Lower Ka = stronger activation'
+                },
+                {
+                    id: `activator${num}_n`,
+                    label: 'Cooperativity (n):',
+                    min: 1,
+                    max: 6,
+                    step: 1,
+                    defaultValue: 2,
+                    title: 'Hill coefficient - higher = sharper response'
+                },
+                {
+                    id: `activator${num}_concentration`,
+                    label: 'Initial Concentration:',
+                    min: 0.0,
+                    max: 5.0,
+                    step: 0.1,
+                    defaultValue: 1.0,
+                    title: 'For floating activators'
+                }
+            ],
+            'Inducer Start': [
+                {
+                    id: `inducer${num}_strength`,
+                    label: 'Inducer Strength:',
+                    min: 0.01,
+                    max: 2.0,
+                    step: 0.01,
+                    defaultValue: 0.5,
+                    title: 'Strength of inducer effect (placeholder for backend)'
+                },
+                {
+                    id: `inducer${num}_n`,
+                    label: 'Cooperativity (n):',
+                    min: 1,
+                    max: 6,
+                    step: 1,
+                    defaultValue: 2,
+                    title: 'Hill coefficient - higher = sharper response'
+                },
+                {
+                    id: `inducer${num}_concentration`,
+                    label: 'External Concentration:',
+                    min: 0.0,
+                    max: 5.0,
+                    step: 0.1,
+                    defaultValue: 1.0,
+                    title: 'Concentration of external inducer'
+                }
+            ],
+            'Inducer End': [
+                {
+                    id: `inducer${num}_strength`,
+                    label: 'Inducer Strength:',
+                    min: 0.01,
+                    max: 2.0,
+                    step: 0.01,
+                    defaultValue: 0.5,
+                    title: 'Strength of inducer effect (placeholder for backend)'
+                },
+                {
+                    id: `inducer${num}_n`,
+                    label: 'Cooperativity (n):',
+                    min: 1,
+                    max: 6,
+                    step: 1,
+                    defaultValue: 2,
+                    title: 'Hill coefficient - higher = sharper response'
+                },
+                {
+                    id: `inducer${num}_concentration`,
+                    label: 'External Concentration:',
+                    min: 0.0,
+                    max: 5.0,
+                    step: 0.1,
+                    defaultValue: 1.0,
+                    title: 'Concentration of external inducer'
+                }
+            ],
+            'Inhibitor Start': [
+                {
+                    id: `inhibitor${num}_strength`,
+                    label: 'Inhibitor Strength:',
+                    min: 0.01,
+                    max: 2.0,
+                    step: 0.01,
+                    defaultValue: 0.5,
+                    title: 'Strength of inhibitor effect (placeholder for backend)'
+                },
+                {
+                    id: `inhibitor${num}_n`,
+                    label: 'Cooperativity (n):',
+                    min: 1,
+                    max: 6,
+                    step: 1,
+                    defaultValue: 2,
+                    title: 'Hill coefficient - higher = sharper response'
+                },
+                {
+                    id: `inhibitor${num}_concentration`,
+                    label: 'External Concentration:',
+                    min: 0.0,
+                    max: 5.0,
+                    step: 0.1,
+                    defaultValue: 1.0,
+                    title: 'Concentration of external inhibitor'
+                }
+            ],
+            'Inhibitor End': [
+                {
+                    id: `inhibitor${num}_strength`,
+                    label: 'Inhibitor Strength:',
+                    min: 0.01,
+                    max: 2.0,
+                    step: 0.01,
+                    defaultValue: 0.5,
+                    title: 'Strength of inhibitor effect (placeholder for backend)'
+                },
+                {
+                    id: `inhibitor${num}_n`,
+                    label: 'Cooperativity (n):',
+                    min: 1,
+                    max: 6,
+                    step: 1,
+                    defaultValue: 2,
+                    title: 'Hill coefficient - higher = sharper response'
+                },
+                {
+                    id: `inhibitor${num}_concentration`,
+                    label: 'External Concentration:',
+                    min: 0.0,
+                    max: 5.0,
+                    step: 0.1,
+                    defaultValue: 1.0,
+                    title: 'Concentration of external inhibitor'
                 }
             ]
         };
@@ -349,31 +671,102 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log(`Placed ${componentType} #${state.componentCounts[baseType]} at (${x}, ${y})`);
         return component;
     }
-
-    function removeComponent(x, y) {
-        // Find and remove component at this position
-        let removed = null;
-        
+// Remove component from position
+function removeComponent(x, y) {
+    console.log(`Attempting to remove component at (${x}, ${y})`);
+    
+    const cell = document.querySelector(`[data-x="${x}"][data-y="${y}"]`);
+    if (!cell) {
+        console.log(`Cell not found at (${x}, ${y})`);
+        return null;
+    }
+    
+    // Remove from connector system first
+    removeComponentFromCell(cell);
+    
+    // Find and remove component from placedComponents array
+    const index = state.placedComponents.findIndex(comp => comp.x === x && comp.y === y);
+    let removed = null;
+    
+    if (index !== -1) {
+        removed = state.placedComponents.splice(index, 1)[0];
+        console.log(`Found component in placedComponents:`, removed);
+    }
+    
+    // Also remove from cellboard if it exists there
+    if (!removed) {
         for (const [type, components] of Object.entries(state.cellboard)) {
-            const index = components.findIndex(comp => comp.x === x && comp.y === y);
-            if (index !== -1) {
-                removed = components.splice(index, 1)[0];
+            const cellboardIndex = components.findIndex(comp => comp.x === x && comp.y === y);
+            if (cellboardIndex !== -1) {
+                removed = components.splice(cellboardIndex, 1)[0];
+                console.log(`Found component in cellboard:`, removed);
                 break;
             }
         }
+    }
+    
+    if (removed) {
+        // Clear visual representation
+        cell.innerHTML = '';
+        cell.classList.remove('filled');
+        cell.classList.remove('has-component');
+        console.log(`Cleared visual at (${x}, ${y})`);
         
-        if (removed) {
-            // Clear visual representation
-            const cell = document.querySelector(`[data-x="${x}"][data-y="${y}"]`);
-            if (cell) {
-                cell.innerHTML = '';
-                cell.classList.remove('filled');
-            }
-            console.log(`Removed ${removed.type} from (${x}, ${y})`);
+        // Remove dynamic parameter section if it exists
+        if (removed.number) {
+            removeDynamicParameterSection(removed.type, removed.number);
         }
         
-        return removed;
+        console.log(`Successfully removed ${removed.type} from (${x}, ${y})`);
+    } else {
+        console.log(`No component found at (${x}, ${y})`);
     }
+    
+    return removed;
+}
+
+// Helper function to remove component from connector system
+function removeComponentFromCell(cell) {
+    // Find component object in connector system by cell reference
+    if (typeof ConnectorManagerEEPROM !== 'undefined') {
+        ConnectorManagerEEPROM.removeComponent(cell);
+    }
+}
+
+// Helper function to register component with connector system
+function registerComponentWithConnectorSystem(component, cell) {
+    console.log(`Registering component with connector system: ${component.type} at (${component.x}, ${component.y})`);
+    
+    // Only register if ConnectorManagerEEPROM is available and component is a regulator
+    if (typeof ConnectorManagerEEPROM === 'undefined') {
+        console.log('ConnectorManagerEEPROM not available');
+        return null;
+    }
+    
+    if (!REGULATOR_TYPES.includes(component.type)) {
+        console.log(`Component ${component.type} is not a regulator type`);
+        return null;
+    }
+    
+    // Initialize connector manager if needed
+    if (!ConnectorManagerEEPROM.container) {
+        const success = ConnectorManagerEEPROM.init();
+        if (!success) {
+            console.log('Failed to initialize ConnectorManagerEEPROM');
+            return null;
+        }
+    }
+    
+    // Add component to connector system - this will create ports automatically
+    const connectorComponent = ConnectorManagerEEPROM.addComponent(component, cell);
+    console.log('Component registered with connector system:', connectorComponent);
+    console.log('Ports created:', {
+        inputPorts: connectorComponent.inputPorts.length,
+        outputPorts: connectorComponent.outputPorts.length
+    });
+    
+    return connectorComponent;
+}
     
     // Remove dynamic parameter section
     function removeDynamicParameterSection(componentType, componentNumber) {
@@ -387,56 +780,87 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function updateCellDisplay(x, y, componentType, componentNumber, customName = null) {
-        const cell = document.querySelector(`[data-x="${x}"][data-y="${y}"]`);
-        if (!cell) return;
-        
-        // Clear previous content
-        cell.innerHTML = '';
-        cell.classList.add('filled');
-        
-        // Find the component in our data to get its custom name
-        let component = null;
-        for (const [type, components] of Object.entries(state.cellboard)) {
-            component = components.find(comp => comp.x === x && comp.y === y);
-            if (component) break;
-        }
-        
-        // Create component display
-        const display = document.createElement('div');
-        display.className = 'placed-component';
-        
-        // Use custom name if available, otherwise show full component type
-        const displayName = (component && component.customName) || componentType;
-        display.textContent = displayName;
-        display.title = `${componentType} #${componentNumber} - Click to edit parameters`;
-        
-        // Add component-specific styling
-        display.classList.add(`component-${componentType.toLowerCase().replace(' ', '-')}`);
-        
-        // Add double-click event - for components with parameters, open modal; for regulators, do nothing
-        if (!REGULATOR_TYPES.includes(componentType)) {
-            display.addEventListener('dblclick', function(e) {
-                e.stopPropagation();
-                showComponentParameterModal(x, y, componentType, componentNumber, component);
-            });
-        }
-        
-        // Add single-click event for parameter editing (exclude regulators and global components)
-        if (!REGULATOR_TYPES.includes(componentType)) {
-            display.addEventListener('click', function(e) {
-                e.stopPropagation();
-                showComponentParameterModal(x, y, componentType, componentNumber, component);
-            });
-            
-            // Add visual indicator that component is clickable for parameters
-            display.classList.add('has-parameters');
-            display.title += ' (Click to edit parameters & rename)';
-        }
-        
-        cell.appendChild(display);
+    // Update cell display
+function updateCellDisplay(x, y, componentType, componentNumber, customName = null, componentData = null) {
+    console.log(`updateCellDisplay called with: x=${x}, y=${y}, componentType=${componentType}, componentNumber=${componentNumber}`);
+    
+    const cell = document.querySelector(`[data-x="${x}"][data-y="${y}"]`);
+    if (!cell) {
+        console.error(`Cell not found at (${x}, ${y})`);
+        return;
     }
+    
+    // Save existing ports before clearing
+    const existingPorts = Array.from(cell.querySelectorAll('.component-port'));
+    console.log(`Found ${existingPorts.length} existing ports to preserve`);
+    
+    // Clear previous content
+    cell.innerHTML = '';
+    cell.classList.add('filled');
+    cell.classList.add('has-component');
+    
+    // Find the component in our data to get its custom name
+    let component = componentData;
+    if (!component) {
+        component = state.placedComponents.find(comp => comp.x === x && comp.y === y);
+        
+        if (!component) {
+            for (const [type, components] of Object.entries(state.cellboard)) {
+                component = components.find(comp => comp.x === x && comp.y === y);
+                if (component) break;
+            }
+        }
+    }
+    
+    // Create component display
+    const display = document.createElement('div');
+    display.className = 'placed-component';
+    display.dataset.componentId = component ? component.id : `${componentType}_${x}_${y}`;
+    display.dataset.componentType = componentType;
+    
+    // Use custom name if available, otherwise show full component type
+    const displayName = (component && component.customName) || componentType || 'Unknown Component';
+    console.log(`Display name will be: ${displayName} (componentType: ${componentType})`);
+    display.textContent = displayName;
+    display.title = `${componentType} #${componentNumber} - Click to edit parameters`;
+    
+    // Add component-specific styling
+    display.classList.add(`component-${componentType.toLowerCase().replace(' ', '-')}`);
+    
+    // Add click event for parameter editing (now includes regulators)
+    display.addEventListener('click', function(e) {
+        e.stopPropagation();
+        showComponentParameterModal(x, y, componentType, componentNumber, component);
+    });
+    
+    // Add visual indicator that component is clickable for parameters
+    display.classList.add('has-parameters');
+    display.title += ' (Click to edit parameters & rename)';
+    
+    cell.appendChild(display);
+    
+    // Restore existing ports
+    existingPorts.forEach(port => {
+        cell.appendChild(port);
+        console.log(`Restored port: ${port.className}`);
+    });
+    
+    // Ports will be created by registerComponentWithConnectorSystem
+    // which is called separately after component placement
+}
 
+// Helper function to add ports to regulator components
+function addPortsToCell(cell, componentType) {
+    console.log(`Adding ports to cell for ${componentType}`);
+    
+    // Make sure cell has position relative for absolute positioning
+    cell.style.position = 'relative';
+    
+    // Ports are now created by registerComponentWithConnectorSystem
+    // This function is kept for backward compatibility but ports
+    // are actually created in GeneticComponentEEPROM
+    console.log('Ports will be created by ConnectorManagerEEPROM');
+}
     function getComponentSymbol(type) {
         const symbols = {
             'Promoter': 'P',
@@ -453,6 +877,74 @@ document.addEventListener('DOMContentLoaded', function() {
             'Inhibitor End': 'Ine'
         };
         return symbols[type] || type.charAt(0);
+    }
+
+    // Synchronize parameters between Start and End regulator pairs
+    function syncRegulatorPair(componentType, componentNumber, paramId, value) {
+        // Check if this is a regulator component
+        const regulatorPairs = {
+            'Repressor Start': 'Repressor End',
+            'Repressor End': 'Repressor Start',
+            'Activator Start': 'Activator End',
+            'Activator End': 'Activator Start',
+            'Inducer Start': 'Inducer End',
+            'Inducer End': 'Inducer Start',
+            'Inhibitor Start': 'Inhibitor End',
+            'Inhibitor End': 'Inhibitor Start'
+        };
+        
+        const pairType = regulatorPairs[componentType];
+        if (!pairType) return; // Not a regulator component
+        
+        console.log(`[SYNC] Syncing ${componentType} #${componentNumber} parameter ${paramId} = ${value} to ${pairType}`);
+        console.log(`[SYNC] Current cellboard:`, state.cellboard);
+        console.log(`[SYNC] Current placedComponents:`, state.placedComponents);
+        
+        // Find all components of the pair type with the same number
+        let foundAny = false;
+        
+        // Search in cellboard
+        for (const [type, components] of Object.entries(state.cellboard)) {
+            if (type === pairType) {
+                components.forEach(comp => {
+                    if (comp.number === componentNumber) {
+                        // Update the parameter
+                        if (!comp.parameters) comp.parameters = {};
+                        comp.parameters[paramId] = value;
+                        console.log(`[SYNC] ✓ Synced to ${pairType} at (${comp.x}, ${comp.y}), new params:`, comp.parameters);
+                        foundAny = true;
+                        
+                        // Update UI input if modal is open for this component
+                        const inputElement = document.getElementById(paramId);
+                        if (inputElement && inputElement.name === paramId) {
+                            inputElement.value = value;
+                            console.log(`[SYNC] ✓ Updated UI input ${paramId} to ${value}`);
+                        }
+                    }
+                });
+            }
+        }
+        
+        // Also search in placedComponents
+        state.placedComponents.forEach(comp => {
+            if (comp.type === pairType && comp.number === componentNumber) {
+                if (!comp.parameters) comp.parameters = {};
+                comp.parameters[paramId] = value;
+                console.log(`[SYNC] ✓ Synced to ${pairType} #${componentNumber} in placedComponents at (${comp.x}, ${comp.y}), new params:`, comp.parameters);
+                foundAny = true;
+                
+                // Update UI input if modal is open for this component
+                const inputElement = document.getElementById(paramId);
+                if (inputElement && inputElement.name === paramId) {
+                    inputElement.value = value;
+                    console.log(`[SYNC] ✓ Updated UI input ${paramId} to ${value}`);
+                }
+            }
+        });
+        
+        if (!foundAny) {
+            console.log(`[SYNC] ✗ No paired ${pairType} #${componentNumber} found yet`);
+        }
     }
 
     // Show component parameter modal
@@ -529,6 +1021,18 @@ document.addEventListener('DOMContentLoaded', function() {
             label.textContent = param.label;
             label.setAttribute('for', param.id);
             
+            // Add range info to label
+            const rangeInfo = document.createElement('small');
+            rangeInfo.className = 'param-range-info';
+            rangeInfo.textContent = ` (Range: ${param.min} - ${param.max})`;
+            rangeInfo.style.color = '#9ca3af';
+            rangeInfo.style.fontSize = '0.85em';
+            rangeInfo.style.fontWeight = 'normal';
+            label.appendChild(rangeInfo);
+            
+            const inputWrapper = document.createElement('div');
+            inputWrapper.style.position = 'relative';
+            
             const input = document.createElement('input');
             input.type = 'number';
             input.id = param.id;
@@ -536,12 +1040,39 @@ document.addEventListener('DOMContentLoaded', function() {
             input.min = param.min;
             input.max = param.max;
             input.step = param.step;
+            
             // Load existing value if available, otherwise use default
             const existingValue = component?.parameters?.[param.id];
+            const isUsingDefault = existingValue === undefined;
             input.value = existingValue !== undefined ? existingValue : param.defaultValue;
             
+            // Build comprehensive tooltip
+            let tooltipText = '';
             if (param.title) {
-                input.title = param.title;
+                tooltipText = param.title + '\n';
+            }
+            tooltipText += `Default: ${param.defaultValue}\nRange: ${param.min} to ${param.max}`;
+            input.title = tooltipText;
+            
+            // Add visual indicator if using default value
+            if (isUsingDefault) {
+                const defaultBadge = document.createElement('span');
+                defaultBadge.className = 'default-value-badge';
+                defaultBadge.textContent = 'default';
+                defaultBadge.style.cssText = `
+                    position: absolute;
+                    right: 8px;
+                    top: 50%;
+                    transform: translateY(-50%);
+                    font-size: 0.7em;
+                    color: #6ee7b7;
+                    background: rgba(110, 231, 183, 0.15);
+                    padding: 2px 6px;
+                    border-radius: 3px;
+                    pointer-events: none;
+                    font-weight: 600;
+                `;
+                inputWrapper.appendChild(defaultBadge);
             }
             
             // Add real-time update
@@ -550,12 +1081,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (component) {
                     if (!component.parameters) component.parameters = {};
                     component.parameters[param.id] = parseFloat(this.value);
+                    
+                    // Synchronize Start/End regulator pairs
+                    syncRegulatorPair(componentType, componentNumber, param.id, parseFloat(this.value));
                 }
+                
+                // Remove default badge when value is changed
+                const badge = inputWrapper.querySelector('.default-value-badge');
+                if (badge && parseFloat(this.value) !== param.defaultValue) {
+                    badge.remove();
+                }
+                
                 console.log(`Updated ${param.id} to ${this.value} for component at (${x}, ${y})`);
             });
             
+            inputWrapper.appendChild(input);
             paramGroup.appendChild(label);
-            paramGroup.appendChild(input);
+            paramGroup.appendChild(inputWrapper);
             body.appendChild(paramGroup);
         });
         
@@ -563,18 +1105,17 @@ document.addEventListener('DOMContentLoaded', function() {
         const footer = document.createElement('div');
         footer.className = 'parameter-modal-footer';
         
-        const applyBtn = document.createElement('button');
-        applyBtn.className = 'btn btn-primary';
-        applyBtn.textContent = 'Apply';
-        applyBtn.onclick = () => {
-            // Parameters and name are already updated in real-time
-            // Update the visual display to reflect any name changes
-            updateCellDisplay(x, y, componentType, componentNumber, component?.customName);
-            overlay.remove();
-            console.log(`Applied parameters and name for ${componentType} at (${x}, ${y})`);
-        };
-        
-        const cancelBtn = document.createElement('button');
+    const applyBtn = document.createElement('button');
+    applyBtn.className = 'btn btn-primary';
+    applyBtn.textContent = 'Apply';
+    applyBtn.onclick = () => {
+        // Parameters and name are already updated in real-time
+        // Update the visual display to reflect any name changes
+        // Ports are now preserved automatically in updateCellDisplay
+        updateCellDisplay(x, y, componentType, componentNumber, component?.customName, component);
+        overlay.remove();
+        console.log(`Applied parameters and name for ${componentType} at (${x}, ${y})`);
+    };        const cancelBtn = document.createElement('button');
         cancelBtn.className = 'btn btn-secondary';
         cancelBtn.textContent = 'Cancel';
         cancelBtn.onclick = () => overlay.remove();
@@ -840,11 +1381,26 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Check if dial parameters should be applied
             const enableToggle = document.getElementById('enable_dial_params');
-            const applyDial = enableToggle ? enableToggle.checked : true;
+            const applyDial = enableToggle ? enableToggle.checked : false;
             console.log('Apply dial parameters:', applyDial);
             
             // Collect dial parameters
-            const dialData = collectDialParameters();
+            let dialData = collectDialParameters();
+            
+            // If toggle is OFF, override with default values (1.0 for all global parameters)
+            if (!applyDial) {
+                console.log('⚠️ TOGGLE IS OFF - Using default values (1.0) for ALL global parameters');
+                console.log('   This will reset any custom values you entered to have no effect');
+                dialData = {
+                    global_transcription_rate: 1.0,
+                    global_translation_rate: 1.0,
+                    global_degradation_rate: 1.0,
+                    temperature_factor: 1.0,
+                    resource_availability: 1.0
+                };
+                console.log('[COLLECT] Default dialData (all 1.0):', dialData);
+                console.log('✓ Sending to backend: apply_dial=false, all global params=1.0');
+            }
             
             // Prepare simulation data
             const simulationData = {
@@ -887,37 +1443,54 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Collect all dial inputs from the accordion form (global parameters)
         const dialInputs = document.querySelectorAll('#dial-form input[type="number"]');
-        console.log(`Found ${dialInputs.length} dial parameter inputs`);
+        console.log(`[COLLECT] Found ${dialInputs.length} dial parameter inputs`);
         
         dialInputs.forEach(input => {
             const key = input.name || input.id;
             const value = parseFloat(input.value);
             if (!isNaN(value) && key) {
                 dialData[key] = value;
-                console.log(`  - ${key}: ${value}`);
+                console.log(`  [COLLECT] Global - ${key}: ${value}`);
             }
         });
         
         // Collect component-specific parameters from placed components
         let componentParams = 0;
-        Object.values(state.cellboard).forEach(componentArray => {
-            componentArray.forEach(component => {
+        console.log(`[COLLECT] Scanning cellboard for component parameters...`);
+        console.log(`[COLLECT] Cellboard keys:`, Object.keys(state.cellboard));
+        
+        Object.entries(state.cellboard).forEach(([type, componentArray]) => {
+            console.log(`[COLLECT] Type "${type}" has ${componentArray.length} components`);
+            componentArray.forEach((component, idx) => {
+                console.log(`[COLLECT]   Component ${idx}:`, component);
                 if (component.parameters) {
+                    console.log(`[COLLECT]   Has parameters:`, component.parameters);
                     // Merge component-specific parameters into dialData
                     Object.entries(component.parameters).forEach(([paramId, paramValue]) => {
                         dialData[paramId] = paramValue;
                         componentParams++;
+                        console.log(`[COLLECT]     Added ${paramId} = ${paramValue}`);
                     });
+                } else {
+                    console.log(`[COLLECT]   No parameters object found`);
                 }
             });
         });
         
-        console.log(`Collected dial parameters: ${Object.keys(dialData).length} total (${dialInputs.length} global + ${componentParams} component-specific):`, dialData);
+        console.log(`[COLLECT] Collected dial parameters: ${Object.keys(dialData).length} total (${dialInputs.length} global + ${componentParams} component-specific)`);
+        console.log(`[COLLECT] Final dialData:`, dialData);
         return dialData;
     }
 
     function displaySimulationResults(result) {
         if (!plotContainer) return;
+        
+        // DEBUG: Log the full result to see what we're getting
+        console.log('=== SIMULATION RESULT ===');
+        console.log('Full result:', result);
+        console.log('Circuits:', result.circuits);
+        console.log('Equations:', result.equations);
+        console.log('Regulations:', result.regulations);
         
         // Clear previous results
         plotContainer.innerHTML = '';
@@ -1082,6 +1655,82 @@ document.addEventListener('DOMContentLoaded', function() {
             resultsDiv.appendChild(circuitInfo);
         }
 
+        // Add Global Parameter Effects (if applied)
+        if (result.global_parameters_applied && result.global_parameters) {
+            const globalParamsInfo = document.createElement('div');
+            globalParamsInfo.className = 'global-params-info';
+            
+            let globalHTML = '<h3>Global Parameter Effects</h3>';
+            globalHTML += `<div class="global-status active">Global Parameters ACTIVE</div>`;
+            globalHTML += '<div class="global-params-grid">';
+            
+            const paramDescriptions = {
+                'global_transcription_rate': {
+                    name: 'Transcription Rate',
+                    affects: 'All promoter strengths',
+                    calculation: 'Multiplies promoter strength in: kprod = promoter_strength × RBS_efficiency',
+                    color: '#4ECDC4'
+                },
+                'global_translation_rate': {
+                    name: 'Translation Rate',
+                    affects: 'All RBS efficiency & CDS translation rates',
+                    calculation: 'Multiplies RBS efficiency and CDS translation rates in protein production',
+                    color: '#95E1D3'
+                },
+                'global_degradation_rate': {
+                    name: 'Degradation Rate',
+                    affects: 'All protein degradation rates',
+                    calculation: 'Multiplies degradation term in: dpdt = production - degradation_rate × [protein]',
+                    color: '#FFD166'
+                },
+                'temperature_factor': {
+                    name: 'Temperature',
+                    affects: 'All enzymatic reaction rates',
+                    calculation: 'Multiplies promoter strength and CDS translation rates (simulates temperature effects)',
+                    color: '#FF6B6B'
+                },
+                'resource_availability': {
+                    name: 'Resources',
+                    affects: 'Transcription & translation capacity',
+                    calculation: 'Multiplies promoter strength and RBS efficiency (simulates resource limitations)',
+                    color: '#F8B739'
+                }
+            };
+            
+            Object.entries(result.global_parameters).forEach(([key, value]) => {
+                const info = paramDescriptions[key];
+                if (info && !key.includes('_strength') && !key.includes('_efficiency') && !key.includes('_rate') && !key.includes('_concentration')) {
+                    const multiplier = parseFloat(value);
+                    let effect = 'No change';
+                    let effectColor = '#999';
+                    
+                    if (multiplier > 1) {
+                        effect = `+${((multiplier - 1) * 100).toFixed(0)}% increase`;
+                        effectColor = '#2ECC71';
+                    } else if (multiplier < 1) {
+                        effect = `${((1 - multiplier) * 100).toFixed(0)}% decrease`;
+                        effectColor = '#E74C3C';
+                    }
+                    
+                    globalHTML += `
+                        <div class="global-param-card" style="border-left: 4px solid ${info.color};">
+                            <div class="param-header">
+                                <strong>${info.name}</strong>
+                            </div>
+                            <div class="param-value">Multiplier: <strong>${multiplier.toFixed(2)}x</strong></div>
+                            <div class="param-effect" style="color: ${effectColor};">${effect}</div>
+                            <div class="param-affects"><small><strong>Affects:</strong> ${info.affects}</small></div>
+                            <div class="param-affects" style="margin-top: 5px; opacity: 0.7;"><small><strong>Calculation:</strong> ${info.calculation}</small></div>
+                        </div>
+                    `;
+                }
+            });
+            
+            globalHTML += '</div>';
+            globalParamsInfo.innerHTML = globalHTML;
+            resultsDiv.appendChild(globalParamsInfo);
+        }
+
         // Add regulation information  
         if (result.regulations && result.regulations.length > 0) {
             const regulationInfo = document.createElement('div');
@@ -1208,7 +1857,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function clearBoard() {
+   function clearBoard() {
         // Clear all placed components
         for (const type in state.cellboard) {
             state.cellboard[type] = [];
@@ -1217,13 +1866,23 @@ document.addEventListener('DOMContentLoaded', function() {
         // Reset component counts
         state.componentCounts = {};
         
+        // Clear placed components array
+        state.placedComponents = [];
+        
         // Remove all dynamic parameter sections
         clearAllDynamicParameterSections();
+        
+        // Clear connector system if available
+        if (typeof ConnectorManagerEEPROM !== 'undefined') {
+            ConnectorManagerEEPROM.clearAll();
+            console.log('Connector system cleared');
+        }
         
         // Clear visual representation
         cells.forEach(cell => {
             cell.innerHTML = '';
             cell.classList.remove('filled');
+            cell.classList.remove('has-component');
         });
         
         // Clear results
@@ -1271,7 +1930,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Export functions for external use
+   // Export functions for external use
     window.CircuitDesigner = {
         state,
         placeComponent,
@@ -1279,6 +1938,23 @@ document.addEventListener('DOMContentLoaded', function() {
         runSimulation,
         clearBoard
     };
+    
+    // Initialize connector system for regulators
+    function initializeConnectorSystem() {
+        // Check if connector system classes are available (from eeprom.js)
+        if (typeof ConnectorManagerEEPROM === 'undefined') {
+            console.log('Connector system not available - skipping initialization');
+            return;
+        }
+        
+        console.log('Initializing connector system for regulators...');
+        const success = ConnectorManagerEEPROM.init();
+        if (success) {
+            console.log('Connector system initialized successfully');
+        } else {
+            console.log('Failed to initialize connector system');
+        }
+    }
 });
 
 // Hamburger Menu Functionality
@@ -1333,4 +2009,115 @@ document.addEventListener('DOMContentLoaded', function() {
             e.stopPropagation();
         });
     }
+});// ===== GLOBAL MODE FUNCTIONALITY =====
+/**
+ * Initialize global mode toggle and event listeners
+ * This allows global parameters to automatically update all component parameters
+ */
+function initGlobalMode() {
+    const globalModeToggle = document.getElementById('global_mode_enabled');
+    const globalTranscription = document.getElementById('global_transcription_rate');
+    const globalTranslation = document.getElementById('global_translation_rate');
+    const globalDegradation = document.getElementById('global_degradation_rate');
+    
+    if (!globalModeToggle) {
+        console.warn('Global mode toggle not found - feature disabled');
+        return;
+    }
+    
+    // Listen to global mode toggle changes
+    globalModeToggle.addEventListener('change', function() {
+        if (this.checked) {
+            console.log('Global mode ENABLED - applying global parameters to all components');
+            applyGlobalParametersToComponents();
+        } else {
+            console.log('Global mode DISABLED - resetting components to default values');
+            resetComponentsToDefaults();
+        }
+    });
+    
+    // Listen to global parameter changes
+    if (globalTranscription) {
+        globalTranscription.addEventListener('input', function() {
+            if (globalModeToggle.checked) {
+                updateComponentsByType('transcription', parseFloat(this.value));
+            }
+        });
+    }
+    
+    if (globalTranslation) {
+        globalTranslation.addEventListener('input', function() {
+            if (globalModeToggle.checked) {
+                updateComponentsByType('translation', parseFloat(this.value));
+            }
+        });
+    }
+    
+    if (globalDegradation) {
+        globalDegradation.addEventListener('input', function() {
+            if (globalModeToggle.checked) {
+                updateComponentsByType('degradation', parseFloat(this.value));
+            }
+        });
+    }
+    
+    console.log('Global mode initialized successfully');
+}
+
+/**
+ * Apply current global parameters to all matching component parameters
+ */
+function applyGlobalParametersToComponents() {
+    const globalTranscription = parseFloat(document.getElementById('global_transcription_rate')?.value || 1.0);
+    const globalTranslation = parseFloat(document.getElementById('global_translation_rate')?.value || 1.0);
+    const globalDegradation = parseFloat(document.getElementById('global_degradation_rate')?.value || 1.0);
+    
+    updateComponentsByType('transcription', globalTranscription);
+    updateComponentsByType('translation', globalTranslation);
+    updateComponentsByType('degradation', globalDegradation);
+}
+
+/**
+ * Update all component parameters of a specific type with a global multiplier
+ * @param {string} paramType - 'transcription', 'translation', or 'degradation'
+ * @param {number} globalValue - The global multiplier value
+ */
+function updateComponentsByType(paramType, globalValue) {
+    const inputs = document.querySelectorAll(`#dial-form input[data-param-type="${paramType}"]`);
+    
+    inputs.forEach(input => {
+        const defaultValue = parseFloat(input.getAttribute('data-default-value') || 1.0);
+        const newValue = defaultValue * globalValue;
+        
+        // Round to appropriate step value
+        const step = parseFloat(input.step) || 0.1;
+        const rounded = Math.round(newValue / step) * step;
+        
+        input.value = rounded.toFixed(2);
+        
+        console.log(`Updated ${input.id}: ${defaultValue} × ${globalValue} = ${rounded.toFixed(2)}`);
+    });
+}
+
+/**
+ * Reset all component parameters to their default values from constants.py
+ */
+function resetComponentsToDefaults() {
+    const inputs = document.querySelectorAll('#dial-form input[data-default-value]');
+    
+    inputs.forEach(input => {
+        const defaultValue = input.getAttribute('data-default-value');
+        if (defaultValue) {
+            input.value = defaultValue;
+            console.log(`Reset ${input.id} to default: ${defaultValue}`);
+        }
+    });
+}
+
+// Initialize global mode when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    // Delay initialization to ensure all elements are created
+    setTimeout(() => {
+        initGlobalMode();
+    }, 500);
 });

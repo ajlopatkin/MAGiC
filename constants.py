@@ -57,12 +57,15 @@ COMPONENT_CONSTANTS = {
     "terminator_h": {"efficiency": 0.99, "type": "terminator"},
     
     # Repressors - Optimal Kr values for repressilator oscillation (classic range)
+    # Software format: repressor_start_1, repressor_start_2, etc.
     "repressor_start_1": {"Kr": 0.35, "n": 2, "type": "repressor", "is_floating": False},
     "repressor_end_1": {"Kr": 0.35, "n": 2, "type": "repressor", "is_floating": False},
     "repressor_start_2": {"Kr": 0.35, "n": 2, "type": "repressor", "is_floating": False},
     "repressor_end_2": {"Kr": 0.35, "n": 2, "type": "repressor", "is_floating": False},
     "repressor_start_3": {"Kr": 0.35, "n": 2, "type": "repressor", "is_floating": False},
     "repressor_end_3": {"Kr": 0.35, "n": 2, "type": "repressor", "is_floating": False},
+    
+    # Generic repressors (backward compatibility)
     "repressor_a": {"Kr": 0.5, "n": 2, "type": "repressor", "is_floating": False},
     "repressor_b": {"Kr": 0.1, "n": 2, "type": "repressor", "is_floating": False},
     "repressor_c": {"Kr": 0.4, "n": 2, "type": "repressor", "is_floating": False},
@@ -71,14 +74,27 @@ COMPONENT_CONSTANTS = {
     "repressor_f": {"Kr": 0.5, "n": 2, "type": "repressor", "is_floating": False},
     "repressor_g": {"Kr": 0.5, "n": 2, "type": "repressor", "is_floating": False},
     "repressor_h": {"Kr": 0.5, "n": 2, "type": "repressor", "is_floating": False},
+    
+    # Hardware format: repressor_a_start, repressor_b_start, etc.
     "repressor_a_start": {"Kr": 0.5, "n": 2, "type": "repressor", "is_floating": False},
     "repressor_a_end": {"Kr": 0.5, "n": 2, "type": "repressor", "is_floating": False},
     "repressor_b_start": {"Kr": 0.1, "n": 2, "type": "repressor", "is_floating": False},
     "repressor_b_end": {"Kr": 0.1, "n": 2, "type": "repressor", "is_floating": False},
     "repressor_c_start": {"Kr": 0.4, "n": 2, "type": "repressor", "is_floating": False},
     "repressor_c_end": {"Kr": 0.4, "n": 2, "type": "repressor", "is_floating": False},
+    "repressor_d_start": {"Kr": 0.5, "n": 2, "type": "repressor", "is_floating": False},
+    "repressor_d_end": {"Kr": 0.5, "n": 2, "type": "repressor", "is_floating": False},
+    "repressor_e_start": {"Kr": 0.5, "n": 2, "type": "repressor", "is_floating": False},
+    "repressor_e_end": {"Kr": 0.5, "n": 2, "type": "repressor", "is_floating": False},
+    "repressor_f_start": {"Kr": 0.5, "n": 2, "type": "repressor", "is_floating": False},
+    "repressor_f_end": {"Kr": 0.5, "n": 2, "type": "repressor", "is_floating": False},
+    "repressor_g_start": {"Kr": 0.5, "n": 2, "type": "repressor", "is_floating": False},
+    "repressor_g_end": {"Kr": 0.5, "n": 2, "type": "repressor", "is_floating": False},
+    "repressor_h_start": {"Kr": 0.5, "n": 2, "type": "repressor", "is_floating": False},
+    "repressor_h_end": {"Kr": 0.5, "n": 2, "type": "repressor", "is_floating": False},
     
     # Activators - From working notebook constants
+    # Generic activators (backward compatibility)
     "activator_a": {"Ka": 0.4, "n": 2, "type": "activator", "is_floating": False},
     "activator_b": {"Ka": 0.4, "n": 2, "type": "activator", "is_floating": False},
     "activator_c": {"Ka": 0.4, "n": 2, "type": "activator", "is_floating": False},
@@ -87,6 +103,60 @@ COMPONENT_CONSTANTS = {
     "activator_f": {"Ka": 0.4, "n": 2, "type": "activator", "is_floating": False},
     "activator_g": {"Ka": 0.4, "n": 2, "type": "activator", "is_floating": False},
     "activator_h": {"Ka": 0.4, "n": 2, "type": "activator", "is_floating": False},
+    
+    # Hardware format: activator_a_start, activator_b_start, etc.
+    "activator_a_start": {"Ka": 0.4, "n": 2, "type": "activator", "is_floating": False},
+    "activator_a_end": {"Ka": 0.4, "n": 2, "type": "activator", "is_floating": False},
+    "activator_b_start": {"Ka": 0.4, "n": 2, "type": "activator", "is_floating": False},
+    "activator_b_end": {"Ka": 0.4, "n": 2, "type": "activator", "is_floating": False},
+    "activator_c_start": {"Ka": 0.4, "n": 2, "type": "activator", "is_floating": False},
+    "activator_c_end": {"Ka": 0.4, "n": 2, "type": "activator", "is_floating": False},
+    "activator_d_start": {"Ka": 0.4, "n": 2, "type": "activator", "is_floating": False},
+    "activator_d_end": {"Ka": 0.4, "n": 2, "type": "activator", "is_floating": False},
+    "activator_e_start": {"Ka": 0.4, "n": 2, "type": "activator", "is_floating": False},
+    "activator_e_end": {"Ka": 0.4, "n": 2, "type": "activator", "is_floating": False},
+    "activator_f_start": {"Ka": 0.4, "n": 2, "type": "activator", "is_floating": False},
+    "activator_f_end": {"Ka": 0.4, "n": 2, "type": "activator", "is_floating": False},
+    "activator_g_start": {"Ka": 0.4, "n": 2, "type": "activator", "is_floating": False},
+    "activator_g_end": {"Ka": 0.4, "n": 2, "type": "activator", "is_floating": False},
+    "activator_h_start": {"Ka": 0.4, "n": 2, "type": "activator", "is_floating": False},
+    "activator_h_end": {"Ka": 0.4, "n": 2, "type": "activator", "is_floating": False},
+    
+    # Hardware format: inducer_a_start, inducer_b_start, etc.
+    "inducer_a_start": {"Ka": 0.5, "n": 2, "type": "inducer", "is_floating": False},
+    "inducer_a_end": {"Ka": 0.5, "n": 2, "type": "inducer", "is_floating": False},
+    "inducer_b_start": {"Ka": 0.5, "n": 2, "type": "inducer", "is_floating": False},
+    "inducer_b_end": {"Ka": 0.5, "n": 2, "type": "inducer", "is_floating": False},
+    "inducer_c_start": {"Ka": 0.5, "n": 2, "type": "inducer", "is_floating": False},
+    "inducer_c_end": {"Ka": 0.5, "n": 2, "type": "inducer", "is_floating": False},
+    "inducer_d_start": {"Ka": 0.5, "n": 2, "type": "inducer", "is_floating": False},
+    "inducer_d_end": {"Ka": 0.5, "n": 2, "type": "inducer", "is_floating": False},
+    "inducer_e_start": {"Ka": 0.5, "n": 2, "type": "inducer", "is_floating": False},
+    "inducer_e_end": {"Ka": 0.5, "n": 2, "type": "inducer", "is_floating": False},
+    "inducer_f_start": {"Ka": 0.5, "n": 2, "type": "inducer", "is_floating": False},
+    "inducer_f_end": {"Ka": 0.5, "n": 2, "type": "inducer", "is_floating": False},
+    "inducer_g_start": {"Ka": 0.5, "n": 2, "type": "inducer", "is_floating": False},
+    "inducer_g_end": {"Ka": 0.5, "n": 2, "type": "inducer", "is_floating": False},
+    "inducer_h_start": {"Ka": 0.5, "n": 2, "type": "inducer", "is_floating": False},
+    "inducer_h_end": {"Ka": 0.5, "n": 2, "type": "inducer", "is_floating": False},
+    
+    # Hardware format: inhibitor_a_start, inhibitor_b_start, etc.
+    "inhibitor_a_start": {"Kr": 0.5, "n": 2, "type": "inhibitor", "is_floating": False},
+    "inhibitor_a_end": {"Kr": 0.5, "n": 2, "type": "inhibitor", "is_floating": False},
+    "inhibitor_b_start": {"Kr": 0.5, "n": 2, "type": "inhibitor", "is_floating": False},
+    "inhibitor_b_end": {"Kr": 0.5, "n": 2, "type": "inhibitor", "is_floating": False},
+    "inhibitor_c_start": {"Kr": 0.5, "n": 2, "type": "inhibitor", "is_floating": False},
+    "inhibitor_c_end": {"Kr": 0.5, "n": 2, "type": "inhibitor", "is_floating": False},
+    "inhibitor_d_start": {"Kr": 0.5, "n": 2, "type": "inhibitor", "is_floating": False},
+    "inhibitor_d_end": {"Kr": 0.5, "n": 2, "type": "inhibitor", "is_floating": False},
+    "inhibitor_e_start": {"Kr": 0.5, "n": 2, "type": "inhibitor", "is_floating": False},
+    "inhibitor_e_end": {"Kr": 0.5, "n": 2, "type": "inhibitor", "is_floating": False},
+    "inhibitor_f_start": {"Kr": 0.5, "n": 2, "type": "inhibitor", "is_floating": False},
+    "inhibitor_f_end": {"Kr": 0.5, "n": 2, "type": "inhibitor", "is_floating": False},
+    "inhibitor_g_start": {"Kr": 0.5, "n": 2, "type": "inhibitor", "is_floating": False},
+    "inhibitor_g_end": {"Kr": 0.5, "n": 2, "type": "inhibitor", "is_floating": False},
+    "inhibitor_h_start": {"Kr": 0.5, "n": 2, "type": "inhibitor", "is_floating": False},
+    "inhibitor_h_end": {"Kr": 0.5, "n": 2, "type": "inhibitor", "is_floating": False},
     
     # Floating regulators - From working notebook constants
     "floating_inhibitor_a": {"Kr": 0.5, "n": 2, "concentration": 1.0, "type": "inhibitor", "is_floating": True},

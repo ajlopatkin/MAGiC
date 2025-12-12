@@ -137,8 +137,13 @@ circuit_builder = OntologyBuilderUnified(COMPONENT_CONSTANTS)
 
 @app.route('/')
 def loading():
-    """Main simulator page with drag-and-drop interface"""
+    """Loading splash screen"""
     return render_template('loading.html')
+
+@app.route('/home')
+def home():
+    """Home page with navigation menu"""
+    return render_template('home.html')
 
 @app.route('/dial')
 def dial():
@@ -169,15 +174,30 @@ def simulate():
         
         cellboard = data['cellboard']
         # Explicit flag from client telling whether dial overrides should be applied
-        apply_dial = bool(data.get('apply_dial', True))
-        dial_data = data.get('dial', {}) if apply_dial else {}
+        apply_dial = bool(data.get('apply_dial', False))
+        # Always use dial_data if present (it contains 1.0 defaults when toggle is off)
+        dial_data = data.get('dial', {})
         
         # Debug logging
-        print(f"[DEBUG] Simulation request received:")
-        print(f"  - Apply dial: {apply_dial}")
-        print(f"  - Dial parameters: {len(dial_data)} items - {dial_data}")
+        print(f"\n{'='*80}")
+        print(f"[SIMULATION REQUEST]")
+        print(f"{'='*80}")
+        print(f"  - Apply dial flag: {apply_dial}")
+        print(f"  - Dial data present in request: {'dial' in data}")
+        print(f"  - Dial parameters received: {len(dial_data)} items")
+        if dial_data:
+            print(f"  - Global parameters in dial_data:")
+            for key in ['global_transcription_rate', 'global_translation_rate', 'global_degradation_rate', 'temperature_factor', 'resource_availability']:
+                if key in dial_data:
+                    print(f"      {key}: {dial_data[key]}")
+            if apply_dial:
+                print(f"  - ✓ Global parameters WILL BE APPLIED (toggle ON)")
+            else:
+                print(f"  - ✓ Using default values 1.0 (toggle OFF - no effect)")
+        else:
+            print(f"  - NO dial parameters (using base component values)")
         print(f"  - Cellboard components: {sum(len(comps) for comps in cellboard.values())}")
-        print(f"  - Cellboard structure: {cellboard}")
+        print(f"{'='*80}\n")
         
         # Convert cellboard format to hardware txt file format
         placed_components = []
@@ -257,7 +277,9 @@ def simulate():
             }), 400
         
         # Apply dial adjustments to constants if provided
-        adjusted_constants = COMPONENT_CONSTANTS.copy()
+        # IMPORTANT: Use deep copy to avoid modifying the original constants
+        import copy
+        adjusted_constants = copy.deepcopy(COMPONENT_CONSTANTS)
         
         # Process dial parameters for component-specific overrides
         if dial_data:
@@ -371,7 +393,16 @@ def simulate():
                             print(f"Applied global override: {comp_name}.{param_name} = {original_val} → {override_value}")
             
             # Apply global multipliers AFTER overrides (so they affect the final values)
-            print(f"[DEBUG] Processing global parameters from dial_data: {list(dial_data.keys())}")
+            print(f"\n[GLOBAL MULTIPLIERS] Checking for global parameters in dial_data...")
+            print(f"[GLOBAL MULTIPLIERS] dial_data keys: {list(dial_data.keys())}")
+            
+            has_global_params = any(k in dial_data for k in ['global_transcription_rate', 'global_translation_rate', 'global_degradation_rate', 'temperature_factor', 'resource_availability'])
+            
+            if not has_global_params:
+                print(f"[GLOBAL MULTIPLIERS] ✗ NO global parameters found - components will use base values only")
+            else:
+                print(f"[GLOBAL MULTIPLIERS] ✓ Global parameters found - applying multipliers...")
+            
             for comp_name in adjusted_constants:
                 comp_type = adjusted_constants[comp_name].get('type', '')
                 
@@ -508,6 +539,72 @@ def simulate():
         plot_data = base64.b64encode(buffer.getvalue()).decode()
         plt.close()
         
+        # Prepare component parameters for display
+        component_parameters = []
+        for comp in placed_components:
+            comp_key = comp['name']
+            params = {}
+            
+            # Get parameters from adjusted_constants if they exist
+            if comp_key in adjusted_constants:
+                const_data = adjusted_constants[comp_key]
+                if comp['type'] in ['Promoter']:
+                    params = {
+                        'strength': const_data.get('strength', 'N/A')
+                    }
+                elif comp['type'] == 'RBS':
+                    params = {
+                        'efficiency': const_data.get('efficiency', 'N/A')
+                    }
+                elif comp['type'] == 'CDS':
+                    params = {
+                        'translation_rate': const_data.get('translation_rate', 'N/A'),
+                        'degradation_rate': const_data.get('degradation_rate', 'N/A'),
+                        'init_concentration': const_data.get('init_conc', 'N/A')
+                    }
+                elif comp['type'] == 'Terminator':
+                    params = {
+                        'efficiency': const_data.get('efficiency', 'N/A')
+                    }
+                elif comp['type'] in ['Repressor', 'Repressor Start', 'Repressor End']:
+                    params = {
+                        'Kr': const_data.get('Kr', 'N/A'),
+                        'n': const_data.get('n', 'N/A'),
+                        'type': const_data.get('type', 'repressor'),
+                        'is_floating': const_data.get('is_floating', False)
+                    }
+                elif comp['type'] in ['Activator', 'Activator Start', 'Activator End']:
+                    params = {
+                        'Ka': const_data.get('Ka', 'N/A'),
+                        'n': const_data.get('n', 'N/A'),
+                        'type': const_data.get('type', 'activator'),
+                        'is_floating': const_data.get('is_floating', False)
+                    }
+                elif comp['type'] in ['Inducer Start', 'Inducer End']:
+                    params = {
+                        'Ka': const_data.get('Ka', 'N/A'),
+                        'n': const_data.get('n', 'N/A'),
+                        'concentration': const_data.get('concentration', 'N/A'),
+                        'type': const_data.get('type', 'inducer'),
+                        'is_floating': const_data.get('is_floating', True)
+                    }
+                elif comp['type'] in ['Inhibitor Start', 'Inhibitor End']:
+                    params = {
+                        'Kr': const_data.get('Kr', 'N/A'),
+                        'n': const_data.get('n', 'N/A'),
+                        'concentration': const_data.get('concentration', 'N/A'),
+                        'type': const_data.get('type', 'inhibitor'),
+                        'is_floating': const_data.get('is_floating', True)
+                    }
+            
+            component_parameters.append({
+                'name': comp['name'],
+                'type': comp['type'],
+                'strength': comp['strength'],
+                'position': comp['position'],
+                'parameters': params
+            })
+        
         # Prepare detailed response
         response_data = {
             'status': 'success',
@@ -519,8 +616,11 @@ def simulate():
             'protein_mapping': result.get('protein_mapping', {}),
             'time_series': result.get('time_series', {}),
             'components_analyzed': len(placed_components),
+            'component_parameters': component_parameters,
             'errors': result.get('errors', []),
-            'warnings': result.get('warnings', [])
+            'warnings': result.get('warnings', []),
+            'global_parameters_applied': apply_dial,
+            'global_parameters': {k: v for k, v in dial_data.items() if k in ['global_transcription_rate', 'global_translation_rate', 'global_degradation_rate', 'temperature_factor', 'resource_availability']} if apply_dial else {}
         }
         
         # Add circuit validation messages
@@ -554,7 +654,11 @@ def get_components():
         'Repressor Start': {'color': '#A78BFA'},
         'Repressor End': {'color': '#7E22CE'},
         'Activator Start': {'color': '#3B82F6'},
-        'Activator End': {'color': '#1E40AF'}
+        'Activator End': {'color': '#1E40AF'},
+        'Inducer Start': {'color': '#14B8A6'},
+        'Inducer End': {'color': '#0D9488'},
+        'Inhibitor Start': {'color': '#F97316'},
+        'Inhibitor End': {'color': '#EA580C'}
     }
     return jsonify(components)
 
@@ -562,6 +666,30 @@ def get_components():
 def get_constants():
     """Get current component constants for dial mode"""
     return jsonify(COMPONENT_CONSTANTS)
+
+@app.route('/api/parameter_defaults')
+def get_parameter_defaults():
+    """Get parameter defaults and ranges from constants.py"""
+    from constants import PARAMETER_RANGES
+    
+    # Extract default values from COMPONENT_CONSTANTS
+    defaults = {
+        'promoter_strength': COMPONENT_CONSTANTS.get('promoter_1', {}).get('strength', 5.0),
+        'rbs_efficiency': COMPONENT_CONSTANTS.get('rbs_1', {}).get('efficiency', 1.0),
+        'cds_translation_rate': COMPONENT_CONSTANTS.get('cds_1', {}).get('translation_rate', 7.0),
+        'cds_degradation_rate': COMPONENT_CONSTANTS.get('cds_1', {}).get('degradation_rate', 1.0),
+        'cds_init_conc': COMPONENT_CONSTANTS.get('cds_1', {}).get('init_conc', 0.0),
+        'terminator_efficiency': COMPONENT_CONSTANTS.get('terminator_1', {}).get('efficiency', 0.99),
+        'repressor_Kr': COMPONENT_CONSTANTS.get('repressor_start_1', {}).get('Kr', 0.35),
+        'repressor_n': COMPONENT_CONSTANTS.get('repressor_start_1', {}).get('n', 2),
+        'activator_Ka': COMPONENT_CONSTANTS.get('activator_a', {}).get('Ka', 0.4),
+        'activator_n': COMPONENT_CONSTANTS.get('activator_a', {}).get('n', 2),
+    }
+    
+    return jsonify({
+        'defaults': defaults,
+        'ranges': PARAMETER_RANGES
+    })
 
 @app.route('/interpret_hardware', methods=['POST'])
 def interpret_hardware():
@@ -850,15 +978,21 @@ def parse_hardware_log(log_lines):
                 components_found = []
                 
                 # Search for component patterns (case-insensitive)
+                # IMPORTANT: Order matters - check longer patterns first to avoid partial matches
                 patterns = [
+                    (r'(repressor_[a-z]_start)', 'repressor_start'),
+                    (r'(repressor_[a-z]_end)', 'repressor_end'),
+                    (r'(activator_[a-z]_start)', 'activator_start'),
+                    (r'(activator_[a-z]_end)', 'activator_end'),
+                    (r'(inducer_[a-z]_start)', 'inducer_start'),
+                    (r'(inducer_[a-z]_end)', 'inducer_end'),
+                    (r'(inhibitor_[a-z]_start)', 'inhibitor_start'),
+                    (r'(inhibitor_[a-z]_end)', 'inhibitor_end'),
                     (r'(promotor_[a-f])', 'promoter'),  # Normalize promotor to promoter
                     (r'(promoter_[a-f])', 'promoter'),
-                    (r'(rbs_[a-h])', 'rbs'),
-                    (r'(cds_[a-h])', 'cds'),
                     (r'(terminator_[a-f])', 'terminator'),
-                    (r'(r_[a-b])', 'repressor'),
-                    (r'(omo)', 'promoter'),  # Special case
-                    (r'(termi)', 'terminator')  # Special case
+                    (r'(rbs_[a-h])', 'rbs'),
+                    (r'(cds_[a-h])', 'cds')
                 ]
                 
                 for pattern, comp_type in patterns:
@@ -944,7 +1078,21 @@ def convert_hardware_to_cellboard(channel_data):
         
         for comp_name in components:
             # Handle different component name patterns
-            if '_' in comp_name:
+            comp_lower = comp_name.lower()
+            
+            # Check for regulator Start/End patterns first (repressor_b_start, activator_c_end, etc.)
+            if '_start' in comp_lower or '_end' in comp_lower:
+                parts = comp_lower.split('_')
+                if len(parts) >= 3:
+                    # Pattern: repressor_b_start -> type=repressor, gene=b, position=start
+                    base_type = parts[0]  # repressor, activator, inducer, inhibitor
+                    gene_suffix = parts[1]  # a, b, c, etc.
+                    position = parts[2]  # start or end
+                    comp_type = f"{base_type}_{position}"  # repressor_start, activator_end, etc.
+                else:
+                    print(f"Warning: Invalid regulator format '{comp_name}'")
+                    continue
+            elif '_' in comp_name:
                 # Pattern like "rbs_c", "cds_d", "terminator_b", "r_a"
                 parts = comp_name.split('_')
                 comp_type = parts[0].lower()

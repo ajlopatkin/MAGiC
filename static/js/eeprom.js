@@ -34,11 +34,32 @@ const state = {
 // ===== DOM INITIALIZATION =====
 // Single DOMContentLoaded handler to prevent conflicts
 let isInitialized = false;
+
+// Global state for parameter defaults
+const boardState = {
+    parameterDefaults: null,
+    parameterRanges: null
+};
+
+// Fetch parameter defaults from backend
+async function loadParameterDefaults() {
+    try {
+        const response = await fetch('/api/parameter_defaults');
+        const data = await response.json();
+        boardState.parameterDefaults = data.defaults;
+        boardState.parameterRanges = data.ranges;
+        console.log('✓ [Board Mode] Loaded parameter defaults from constants.py:', data);
+    } catch (error) {
+        console.error('[Board Mode] Failed to load parameter defaults:', error);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     if (isInitialized) return;
     isInitialized = true;
     
     console.log('Initializing EEPROM board mode...');
+    loadParameterDefaults();  // Load defaults from API
     initHamburgerMenu();
     initComponentSystem();
 });
@@ -411,10 +432,41 @@ function setupCells() {
                 };
                 
                 state.placedComponents.push(component);
-                console.log('Component placed:', component);
                 
-                // Update visual
-                updateCellDisplay(x, y, component.type, component.number, component.customName);
+                // Also add to cellboard for backend compatibility and sync
+                if (!state.cellboard[component.type]) {
+                    state.cellboard[component.type] = [];
+                }
+                state.cellboard[component.type].push(component);
+                
+                console.log('Component placed:', component);
+                console.log('Added to cellboard[' + component.type + ']:', state.cellboard[component.type]);
+                
+                // Update visual and register with connector system
+                updateCellDisplay(x, y, component.type, component.number, component.customName, component);
+                
+                // Register component with connector system if it's a regulator
+                if (REGULATOR_TYPES.includes(component.type)) {
+                    console.log(`Component is a regulator type: ${component.type}`);
+                    const connectorComp = registerComponentWithConnectorSystem(component, this);
+                    if (connectorComp) {
+                        console.log(`Connector component created successfully with ${connectorComp.inputPorts.length} input ports and ${connectorComp.outputPorts.length} output ports`);
+                        
+                        // Verify ports are visible in DOM
+                        setTimeout(() => {
+                            const ports = this.querySelectorAll('.component-port');
+                            console.log(`DOM verification: Found ${ports.length} port(s) in cell:`, ports);
+                            ports.forEach((port, idx) => {
+                                const rect = port.getBoundingClientRect();
+                                console.log(`  Port ${idx}: ${port.className}, position: (${rect.left}, ${rect.top}), size: ${rect.width}x${rect.height}`);
+                            });
+                        }, 100);
+                    } else {
+                        console.warn(`Failed to create connector component for ${component.type}`);
+                    }
+                } else {
+                    console.log(`Component is NOT a regulator type: ${component.type}`);
+                }
                 
                 // Clear selection after placing
                 clearComponentSelection();
@@ -485,6 +537,15 @@ function placeComponent(x, y, componentType, strength = 'norm') {
 function removeComponent(x, y) {
     console.log(`Attempting to remove component at (${x}, ${y})`);
     
+    const cell = document.querySelector(`[data-x="${x}"][data-y="${y}"]`);
+    if (!cell) {
+        console.log(`Cell not found at (${x}, ${y})`);
+        return null;
+    }
+    
+    // Remove from connector system first
+    removeComponentFromCell(cell);
+    
     // Find and remove component from placedComponents array
     const index = state.placedComponents.findIndex(comp => comp.x === x && comp.y === y);
     let removed = null;
@@ -529,6 +590,49 @@ function removeComponent(x, y) {
     return removed;
 }
 
+// Helper function to remove component from connector system
+function removeComponentFromCell(cell) {
+    // Find component object in connector system by cell reference
+    if (typeof ConnectorManagerEEPROM !== 'undefined') {
+        ConnectorManagerEEPROM.removeComponent(cell);
+    }
+}
+
+// Helper function to register component with connector system
+function registerComponentWithConnectorSystem(component, cell) {
+    console.log(`Registering component with connector system: ${component.type} at (${component.x}, ${component.y})`);
+    
+    // Only register if ConnectorManagerEEPROM is available and component is a regulator
+    if (typeof ConnectorManagerEEPROM === 'undefined') {
+        console.log('ConnectorManagerEEPROM not available');
+        return null;
+    }
+    
+    if (!REGULATOR_TYPES.includes(component.type)) {
+        console.log(`Component ${component.type} is not a regulator type`);
+        return null;
+    }
+    
+    // Initialize connector manager if needed
+    if (!ConnectorManagerEEPROM.container) {
+        const success = ConnectorManagerEEPROM.init();
+        if (!success) {
+            console.log('Failed to initialize ConnectorManagerEEPROM');
+            return null;
+        }
+    }
+    
+    // Add component to connector system - this will create ports automatically
+    const connectorComponent = ConnectorManagerEEPROM.addComponent(component, cell);
+    console.log('Component registered with connector system:', connectorComponent);
+    console.log('Ports created:', {
+        inputPorts: connectorComponent.inputPorts.length,
+        outputPorts: connectorComponent.outputPorts.length
+    });
+    
+    return connectorComponent;
+}
+
 // Update cell display
 function updateCellDisplay(x, y, componentType, componentNumber, customName = null) {
     console.log(`updateCellDisplay called with: x=${x}, y=${y}, componentType=${componentType}, componentNumber=${componentNumber}`);
@@ -538,6 +642,10 @@ function updateCellDisplay(x, y, componentType, componentNumber, customName = nu
         console.error(`Cell not found at (${x}, ${y})`);
         return;
     }
+    
+    // Save existing ports before clearing
+    const existingPorts = Array.from(cell.querySelectorAll('.component-port'));
+    console.log(`Found ${existingPorts.length} existing ports to preserve`);
     
     // Clear previous content
     cell.innerHTML = '';
@@ -553,6 +661,8 @@ function updateCellDisplay(x, y, componentType, componentNumber, customName = nu
     // Create component display
     const display = document.createElement('div');
     display.className = 'placed-component';
+    display.dataset.component = componentType;  // Store the actual component type
+    display.dataset.strength = component ? (component.strength || 'norm') : 'norm';
     
     // Use custom name if available, otherwise show full component type
     const displayName = (component && component.customName) || componentType || 'Unknown Component';
@@ -563,19 +673,23 @@ function updateCellDisplay(x, y, componentType, componentNumber, customName = nu
     // Add component-specific styling
     display.classList.add(`component-${componentType.toLowerCase().replace(' ', '-')}`);
     
-    // Add click event for parameter editing (exclude regulators)
-    if (!REGULATOR_TYPES.includes(componentType)) {
-        display.addEventListener('click', function(e) {
-            e.stopPropagation();
-            showComponentParameterModal(x, y, componentType, componentNumber, component);
-        });
-        
-        // Add visual indicator that component is clickable for parameters
-        display.classList.add('has-parameters');
-        display.title += ' (Click to edit parameters & rename)';
-    }
+    // Add click event for parameter editing (now includes regulators)
+    display.addEventListener('click', function(e) {
+        e.stopPropagation();
+        showComponentParameterModal(x, y, componentType, componentNumber, component);
+    });
+    
+    // Add visual indicator that component is clickable for parameters
+    display.classList.add('has-parameters');
+    display.title += ' (Click to edit parameters & rename)';
     
     cell.appendChild(display);
+    
+    // Restore existing ports
+    existingPorts.forEach(port => {
+        cell.appendChild(port);
+        console.log(`Restored port: ${port.className}`);
+    });
 }
 
 // Selection status and visual feedback functions
@@ -719,6 +833,18 @@ function createDynamicParameterSection(componentType, componentNumber) {
         input.step = param.step;
         input.value = param.defaultValue;
         
+        // Store default value for reset functionality
+        input.setAttribute('data-default-value', param.defaultValue);
+        
+        // Store parameter category for global mode updates
+        if (param.id.includes('strength') || param.id.includes('promoter')) {
+            input.setAttribute('data-param-type', 'transcription');
+        } else if (param.id.includes('translation') || param.id.includes('rbs')) {
+            input.setAttribute('data-param-type', 'translation');
+        } else if (param.id.includes('degradation')) {
+            input.setAttribute('data-param-type', 'degradation');
+        }
+        
         if (param.title) {
             input.title = param.title;
         }
@@ -752,51 +878,50 @@ function removeDynamicParameterSection(componentType, componentNumber) {
 // ===== COMPONENT PARAMETER SYSTEM =====
 // Get parameters for a specific component type
 function getComponentParameters(componentType, componentNumber) {
-    // Skip parameters for regulator components
-    if (REGULATOR_TYPES.includes(componentType)) {
-        return [];
-    }
-    
     const baseType = componentType.toLowerCase().replace(' ', '_');
     const num = componentNumber;
+    
+    // Get defaults from boardState (loaded from API) or use fallback
+    const defaults = boardState.parameterDefaults || {};
+    const ranges = boardState.parameterRanges || {};
     
     const commonParams = {
         'Promoter': [
             {
                 id: `promoter${num}_strength`,
                 label: 'Promoter Strength:',
-                min: 0.1,
-                max: 5.0,
+                min: ranges.strength?.[0] || 0.1,
+                max: ranges.strength?.[1] || 5.0,
                 step: 0.1,
-                defaultValue: 1.0
+                defaultValue: defaults.promoter_strength || 5.0
             }
         ],
         'RBS': [
             {
                 id: `rbs${num}_efficiency`,
                 label: 'RBS Efficiency:',
-                min: 0.1,
-                max: 2.0,
+                min: ranges.efficiency?.[0] || 0.1,
+                max: ranges.efficiency?.[1] || 2.0,
                 step: 0.1,
-                defaultValue: 1.0
+                defaultValue: defaults.rbs_efficiency || 1.0
             }
         ],
         'CDS': [
             {
                 id: `cds${num}_translation_rate`,
                 label: 'CDS Translation Rate:',
-                min: 1.0,
-                max: 20.0,
+                min: ranges.translation_rate?.[0] || 1.0,
+                max: ranges.translation_rate?.[1] || 20.0,
                 step: 0.5,
-                defaultValue: 5.0
+                defaultValue: defaults.cds_translation_rate || 7.0
             },
             {
                 id: `cds${num}_degradation_rate`,
                 label: 'CDS Degradation Rate:',
-                min: 0.01,
-                max: 1.0,
+                min: ranges.degradation_rate?.[0] || 0.01,
+                max: ranges.degradation_rate?.[1] || 1.0,
                 step: 0.01,
-                defaultValue: 0.1
+                defaultValue: defaults.cds_degradation_rate || 1.0
             },
             {
                 id: `protein${num}_initial_conc`,
@@ -804,7 +929,7 @@ function getComponentParameters(componentType, componentNumber) {
                 min: 0.0,
                 max: 2.0,
                 step: 0.05,
-                defaultValue: 0.1,
+                defaultValue: defaults.cds_init_conc || 0.0,
                 title: 'Starting concentration (µM) - affects oscillation dynamics'
             }
         ],
@@ -815,12 +940,295 @@ function getComponentParameters(componentType, componentNumber) {
                 min: 0.1,
                 max: 1.0,
                 step: 0.01,
-                defaultValue: 0.99
+                defaultValue: defaults.terminator_efficiency || 0.99
+            }
+        ],
+        'Repressor Start': [
+            {
+                id: `repressor${num}_constant`,
+                label: 'Repression Constant (Kr):',
+                min: 0.01,
+                max: 2.0,
+                step: 0.01,
+                defaultValue: 0.35,
+                title: 'How strongly the repressor binds to the promoter'
+            },
+            {
+                id: `repressor${num}_cooperativity`,
+                label: 'Cooperativity (n):',
+                min: 1,
+                max: 6,
+                step: 1,
+                defaultValue: 2,
+                title: 'Hill coefficient - higher values = sharper response'
+            },
+            {
+                id: `repressor${num}_concentration`,
+                label: 'Initial Concentration:',
+                min: 0,
+                max: 5,
+                step: 0.1,
+                defaultValue: 1.0,
+                title: 'Starting repressor protein concentration (µM)'
+            }
+        ],
+        'Repressor End': [
+            {
+                id: `repressor${num}_constant`,
+                label: 'Repression Constant (Kr):',
+                min: 0.01,
+                max: 2.0,
+                step: 0.01,
+                defaultValue: 0.35,
+                title: 'How strongly the repressor binds to the promoter'
+            },
+            {
+                id: `repressor${num}_cooperativity`,
+                label: 'Cooperativity (n):',
+                min: 1,
+                max: 6,
+                step: 1,
+                defaultValue: 2,
+                title: 'Hill coefficient - higher values = sharper response'
+            },
+            {
+                id: `repressor${num}_concentration`,
+                label: 'Initial Concentration:',
+                min: 0,
+                max: 5,
+                step: 0.1,
+                defaultValue: 1.0,
+                title: 'Starting repressor protein concentration (µM)'
+            }
+        ],
+        'Activator Start': [
+            {
+                id: `activator${num}_constant`,
+                label: 'Activation Constant (Ka):',
+                min: 0.01,
+                max: 2.0,
+                step: 0.01,
+                defaultValue: 0.4,
+                title: 'How strongly the activator enhances transcription'
+            },
+            {
+                id: `activator${num}_cooperativity`,
+                label: 'Cooperativity (n):',
+                min: 1,
+                max: 6,
+                step: 1,
+                defaultValue: 2,
+                title: 'Hill coefficient - higher values = sharper response'
+            },
+            {
+                id: `activator${num}_concentration`,
+                label: 'Initial Concentration:',
+                min: 0,
+                max: 5,
+                step: 0.1,
+                defaultValue: 1.0,
+                title: 'Starting activator protein concentration (µM)'
+            }
+        ],
+        'Activator End': [
+            {
+                id: `activator${num}_constant`,
+                label: 'Activation Constant (Ka):',
+                min: 0.01,
+                max: 2.0,
+                step: 0.01,
+                defaultValue: 0.4,
+                title: 'How strongly the activator enhances transcription'
+            },
+            {
+                id: `activator${num}_cooperativity`,
+                label: 'Cooperativity (n):',
+                min: 1,
+                max: 6,
+                step: 1,
+                defaultValue: 2,
+                title: 'Hill coefficient - higher values = sharper response'
+            },
+            {
+                id: `activator${num}_concentration`,
+                label: 'Initial Concentration:',
+                min: 0,
+                max: 5,
+                step: 0.1,
+                defaultValue: 1.0,
+                title: 'Starting activator protein concentration (µM)'
+            }
+        ],
+        'Inducer Start': [
+            {
+                id: `inducer${num}_strength`,
+                label: 'Inducer Strength:',
+                min: 0.01,
+                max: 2.0,
+                step: 0.01,
+                defaultValue: 0.5,
+                title: 'Strength of inducer effect (placeholder for backend)'
+            },
+            {
+                id: `inducer${num}_cooperativity`,
+                label: 'Cooperativity (n):',
+                min: 1,
+                max: 6,
+                step: 1,
+                defaultValue: 2,
+                title: 'Hill coefficient - higher values = sharper response'
+            },
+            {
+                id: `inducer${num}_concentration`,
+                label: 'Initial Concentration:',
+                min: 0,
+                max: 5,
+                step: 0.1,
+                defaultValue: 1.0,
+                title: 'Starting inducer concentration (µM)'
+            }
+        ],
+        'Inducer End': [
+            {
+                id: `inducer${num}_strength`,
+                label: 'Inducer Strength:',
+                min: 0.01,
+                max: 2.0,
+                step: 0.01,
+                defaultValue: 0.5,
+                title: 'Strength of inducer effect (placeholder for backend)'
+            },
+            {
+                id: `inducer${num}_cooperativity`,
+                label: 'Cooperativity (n):',
+                min: 1,
+                max: 6,
+                step: 1,
+                defaultValue: 2,
+                title: 'Hill coefficient - higher values = sharper response'
+            },
+            {
+                id: `inducer${num}_concentration`,
+                label: 'External Concentration:',
+                min: 0,
+                max: 5,
+                step: 0.1,
+                defaultValue: 1.0,
+                title: 'Concentration of external inducer'
+            }
+        ],
+        'Inhibitor Start': [
+            {
+                id: `inhibitor${num}_strength`,
+                label: 'Inhibitor Strength:',
+                min: 0.01,
+                max: 2.0,
+                step: 0.01,
+                defaultValue: 0.5,
+                title: 'Strength of inhibitor effect (placeholder for backend)'
+            },
+            {
+                id: `inhibitor${num}_cooperativity`,
+                label: 'Cooperativity (n):',
+                min: 1,
+                max: 6,
+                step: 1,
+                defaultValue: 2,
+                title: 'Hill coefficient - higher values = sharper response'
+            },
+            {
+                id: `inhibitor${num}_concentration`,
+                label: 'External Concentration:',
+                min: 0,
+                max: 5,
+                step: 0.1,
+                defaultValue: 1.0,
+                title: 'Concentration of external inhibitor'
+            }
+        ],
+        'Inhibitor End': [
+            {
+                id: `inhibitor${num}_strength`,
+                label: 'Inhibitor Strength:',
+                min: 0.01,
+                max: 2.0,
+                step: 0.01,
+                defaultValue: 0.5,
+                title: 'Strength of inhibitor effect (placeholder for backend)'
+            },
+            {
+                id: `inhibitor${num}_cooperativity`,
+                label: 'Cooperativity (n):',
+                min: 1,
+                max: 6,
+                step: 1,
+                defaultValue: 2,
+                title: 'Hill coefficient - higher values = sharper response'
+            },
+            {
+                id: `inhibitor${num}_concentration`,
+                label: 'External Concentration:',
+                min: 0,
+                max: 5,
+                step: 0.1,
+                defaultValue: 1.0,
+                title: 'Concentration of external inhibitor'
             }
         ]
     };
     
     return commonParams[componentType] || [];
+}
+
+// Synchronize parameters between regulator Start/End pairs
+function syncRegulatorPair(sourceType, sourceNumber, paramId, newValue) {
+    console.log(`Syncing ${sourceType} #${sourceNumber}: ${paramId} = ${newValue}`);
+    
+    // Determine the paired component type
+    let targetType = null;
+    if (sourceType === 'Repressor Start') targetType = 'Repressor End';
+    else if (sourceType === 'Repressor End') targetType = 'Repressor Start';
+    else if (sourceType === 'Activator Start') targetType = 'Activator End';
+    else if (sourceType === 'Activator End') targetType = 'Activator Start';
+    else if (sourceType === 'Inducer Start') targetType = 'Inducer End';
+    else if (sourceType === 'Inducer End') targetType = 'Inducer Start';
+    else if (sourceType === 'Inhibitor Start') targetType = 'Inhibitor End';
+    else if (sourceType === 'Inhibitor End') targetType = 'Inhibitor Start';
+    
+    if (!targetType) {
+        console.log(`${sourceType} has no paired component`);
+        return;
+    }
+    
+    // Find the paired component with the same number
+    let pairedComponent = null;
+    
+    // First try to find in cellboard
+    if (state.cellboard && state.cellboard[targetType]) {
+        pairedComponent = state.cellboard[targetType].find(comp => comp.number === sourceNumber);
+    }
+    
+    // Also try placedComponents array
+    if (!pairedComponent && state.placedComponents) {
+        pairedComponent = state.placedComponents.find(comp => 
+            comp.type === targetType && comp.number === sourceNumber
+        );
+    }
+    
+    if (pairedComponent) {
+        if (!pairedComponent.parameters) pairedComponent.parameters = {};
+        pairedComponent.parameters[paramId] = newValue;
+        console.log(`Synced to paired ${targetType} #${sourceNumber}`);
+        
+        // Update UI input if modal is open for this component
+        const inputElement = document.getElementById(paramId);
+        if (inputElement && inputElement.name === paramId) {
+            inputElement.value = newValue;
+            console.log(`Updated UI input ${paramId} to ${newValue}`);
+        }
+    } else {
+        console.log(`No paired ${targetType} #${sourceNumber} found yet`);
+    }
 }
 
 // Show component parameter modal
@@ -889,43 +1297,97 @@ function showComponentParameterModal(x, y, componentType, componentNumber, compo
     // Get parameters for this component
     const parameters = getComponentParameters(componentType, componentNumber);
     
-    parameters.forEach(param => {
-        const paramGroup = document.createElement('div');
-        paramGroup.className = 'parameter-group';
-        
-        const label = document.createElement('label');
-        label.textContent = param.label;
-        label.setAttribute('for', param.id);
-        
-        const input = document.createElement('input');
-        input.type = 'number';
-        input.id = param.id;
-        input.name = param.id;
-        input.min = param.min;
-        input.max = param.max;
-        input.step = param.step;
-        // Load existing value if available, otherwise use default
-        const existingValue = component?.parameters?.[param.id];
-        input.value = existingValue !== undefined ? existingValue : param.defaultValue;
-        
-        if (param.title) {
-            input.title = param.title;
-        }
-        
-        // Add real-time update
-        input.addEventListener('input', function() {
-            // Update component data
-            if (component) {
-                if (!component.parameters) component.parameters = {};
-                component.parameters[param.id] = parseFloat(this.value);
+        parameters.forEach(param => {
+            const paramGroup = document.createElement('div');
+            paramGroup.className = 'parameter-group';
+            
+            const label = document.createElement('label');
+            label.textContent = param.label;
+            label.setAttribute('for', param.id);
+            
+            // Add range info to label
+            const rangeInfo = document.createElement('small');
+            rangeInfo.className = 'param-range-info';
+            rangeInfo.textContent = ` (Range: ${param.min} - ${param.max})`;
+            rangeInfo.style.color = '#9ca3af';
+            rangeInfo.style.fontSize = '0.85em';
+            rangeInfo.style.fontWeight = 'normal';
+            label.appendChild(rangeInfo);
+            
+            const inputWrapper = document.createElement('div');
+            inputWrapper.style.position = 'relative';
+            
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.id = param.id;
+            input.name = param.id;
+            input.min = param.min;
+            input.max = param.max;
+            input.step = param.step;
+            
+            // Load existing value if available, otherwise use default
+            const existingValue = component?.parameters?.[param.id];
+            const isUsingDefault = existingValue === undefined;
+            input.value = existingValue !== undefined ? existingValue : param.defaultValue;
+            
+            // Build comprehensive tooltip
+            let tooltipText = '';
+            if (param.title) {
+                tooltipText = param.title + '\n';
             }
-            console.log(`Updated ${param.id} to ${this.value} for component at (${x}, ${y})`);
+            tooltipText += `Default: ${param.defaultValue}\nRange: ${param.min} to ${param.max}`;
+            input.title = tooltipText;
+            
+            // Add visual indicator if using default value
+            if (isUsingDefault) {
+                const defaultBadge = document.createElement('span');
+                defaultBadge.className = 'default-value-badge';
+                defaultBadge.textContent = 'default';
+                defaultBadge.style.cssText = `
+                    position: absolute;
+                    right: 8px;
+                    top: 50%;
+                    transform: translateY(-50%);
+                    font-size: 0.7em;
+                    color: #6ee7b7;
+                    background: rgba(110, 231, 183, 0.15);
+                    padding: 2px 6px;
+                    border-radius: 3px;
+                    pointer-events: none;
+                    font-weight: 600;
+                `;
+                inputWrapper.appendChild(defaultBadge);
+            }
+            
+            // Add real-time update
+            input.addEventListener('input', function() {
+                // Update component data
+                if (component) {
+                    if (!component.parameters) component.parameters = {};
+                    component.parameters[param.id] = parseFloat(this.value);
+                    
+                    // Sync with paired regulator component if applicable
+                    const regulatorTypes = ['Repressor Start', 'Repressor End', 'Activator Start', 'Activator End',
+                                          'Inducer Start', 'Inducer End', 'Inhibitor Start', 'Inhibitor End'];
+                    if (regulatorTypes.includes(componentType)) {
+                        syncRegulatorPair(componentType, componentNumber, param.id, parseFloat(this.value));
+                    }
+                }
+                
+                // Remove default badge when value is changed
+                const badge = inputWrapper.querySelector('.default-value-badge');
+                if (badge && parseFloat(this.value) !== param.defaultValue) {
+                    badge.remove();
+                }
+                
+                console.log(`Updated ${param.id} to ${this.value} for component at (${x}, ${y})`);
+            });
+            
+            inputWrapper.appendChild(input);
+            paramGroup.appendChild(label);
+            paramGroup.appendChild(inputWrapper);
+            body.appendChild(paramGroup);
         });
-        
-        paramGroup.appendChild(label);
-        paramGroup.appendChild(input);
-        body.appendChild(paramGroup);
-    });
     
     // Modal footer
     const footer = document.createElement('div');
@@ -937,6 +1399,7 @@ function showComponentParameterModal(x, y, componentType, componentNumber, compo
     applyBtn.onclick = () => {
         // Parameters and name are already updated in real-time
         // Update the visual display to reflect any name changes
+        // Ports are now preserved automatically in updateCellDisplay
         updateCellDisplay(x, y, componentType, componentNumber, component?.customName);
         overlay.remove();
         console.log(`Applied parameters and name for ${componentType} at (${x}, ${y})`);
@@ -980,45 +1443,123 @@ let writableStreamClosed = null;
 let isConnecting = false;  // Prevent concurrent operations
 let lineBuffer = '';  // Buffer for partial lines to prevent hex data corruption
 
-// DOM elements
-const comPortSelect = document.getElementById("com-port");
-const btnRefreshPorts = document.getElementById("btn-refresh-ports");
-const btnConnect = document.getElementById("btn-connect");
-const btnGetBoard = document.getElementById("btn-get-board");
-const btnDiagnoseBoard = document.getElementById("btn-diagnose-board");
-const eepromLogArea = document.getElementById("eeprom-log");
-const errorDisplay = document.getElementById("error-display");
-const plotContainer = document.getElementById("plot-container");
+// DOM elements - declared but initialized later
+let comPortSelect;
+let btnRefreshPorts;
+let btnConnect;
+let btnGetBoard;
+let btnDiagnoseBoard;
+let eepromLogArea;
+let errorDisplay;
+let plotContainer;
 
-// Initialize EEPROM interface - DISABLED to prevent conflicts
-// document.addEventListener('DOMContentLoaded', function() {
-//     init();
-// });
+// Initialize EEPROM interface
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize DOM element references first
+    comPortSelect = document.getElementById("com-port");
+    btnRefreshPorts = document.getElementById("btn-refresh-ports");
+    btnConnect = document.getElementById("btn-connect");
+    btnGetBoard = document.getElementById("btn-get-board");
+    btnDiagnoseBoard = document.getElementById("btn-diagnose-board");
+    eepromLogArea = document.getElementById("eeprom-log");
+    errorDisplay = document.getElementById("error-display");
+    plotContainer = document.getElementById("plot-container");
+    
+    console.log('EEPROM DOM elements initialized:', {
+        comPortSelect: !!comPortSelect,
+        btnRefreshPorts: !!btnRefreshPorts,
+        btnConnect: !!btnConnect,
+        btnGetBoard: !!btnGetBoard,
+        btnDiagnoseBoard: !!btnDiagnoseBoard
+    });
+    
+    // Initialize EEPROM serial connection functionality
+    initEEPROMSerial();
+});
+
+async function initEEPROMSerial() {
+    console.log('Initializing EEPROM serial interface...');
+    await init();
+}
 
 async function init() {
+    console.log('=== EEPROM Serial Init Starting ===');
+    console.log('Navigator object:', navigator);
+    console.log('Has serial?', 'serial' in navigator);
+    console.log('Serial object:', navigator.serial);
+    console.log('btnConnect element:', btnConnect);
+    console.log('btnRefreshPorts element:', btnRefreshPorts);
+    console.log('btnGetBoard element:', btnGetBoard);
+    
     // Check for Web Serial API support
     if (!('serial' in navigator)) {
-        logLine('Web Serial API not supported. Please use Chrome 89+ or Edge 89+');
-        logLine('Note: Some browsers require flags to be enabled');
-        btnConnect.disabled = true;
-        btnRefreshPorts.disabled = true;
+        const browserName = navigator.userAgent.includes('Chrome') ? 'Chrome' : 
+                          navigator.userAgent.includes('Edg') ? 'Edge' :
+                          navigator.userAgent.includes('Safari') ? 'Safari' :
+                          navigator.userAgent.includes('Firefox') ? 'Firefox' : 'Unknown';
+        
+        logLine(`❌ Web Serial API not supported in ${browserName}`);
+        logLine(`User Agent: ${navigator.userAgent}`);
+        logLine('');
+        logLine('✅ SUPPORTED BROWSERS:');
+        logLine('  • Google Chrome 89+ (Recommended)');
+        logLine('  • Microsoft Edge 89+');
+        logLine('');
+        logLine('❌ NOT SUPPORTED:');
+        logLine('  • Safari (use Chrome instead)');
+        logLine('  • Firefox (use Chrome instead)');
+        logLine('');
+        logLine('💡 If using Chrome/Edge and still seeing this error:');
+        logLine('  1. Check if you\'re on an HTTPS connection or localhost');
+        logLine('  2. Try chrome://flags/#enable-experimental-web-platform-features');
+        logLine('  3. Make sure you\'re not in an iframe or private/incognito mode');
+        logLine('  4. Check System Preferences > Security & Privacy > Privacy > Automation');
+        
+        // Enable buttons but show error on click
+        if (btnConnect) {
+            btnConnect.disabled = false;
+            btnConnect.addEventListener('click', () => {
+                alert(`Web Serial API is not available.\n\nBrowser: ${browserName}\nVersion: ${navigator.userAgent}\n\nPossible causes:\n- Not using HTTPS or localhost\n- Browser security settings\n- Running in iframe\n- macOS permissions issue`);
+            });
+        }
+        if (btnRefreshPorts) {
+            btnRefreshPorts.disabled = false;
+            btnRefreshPorts.addEventListener('click', () => {
+                alert(`Web Serial API is not available.\n\nPlease use Google Chrome 89+ or Microsoft Edge 89+`);
+            });
+        }
+        
+        console.error('Web Serial API not available. Browser:', browserName);
+        console.error('Full user agent:', navigator.userAgent);
         return;
     }
+    
+    console.log('✓ Web Serial API is available');
+    
+    // Enable buttons now that we know serial is available
+    if (btnConnect) btnConnect.disabled = false;
+    if (btnRefreshPorts) btnRefreshPorts.disabled = false;
     
     // Check if permissions are available
     try {
         await navigator.permissions.query({ name: 'serial' });
+        console.log('✓ Serial permissions query successful');
     } catch (err) {
+        console.warn('Serial permissions query failed:', err);
         logLine('⚠️ Serial permissions may be restricted by browser policy');
         logLine('This might be due to iframe context, mixed content, or security settings');
         logLine('Try: 1) Opening in a new tab, 2) Using HTTPS, 3) Checking browser flags');
     }
 
     // Setup event listeners
+    console.log('Setting up event listeners...');
     setupEventListeners();
     
     // Try to list previously granted ports
+    console.log('Listing ports...');
     listPorts();
+    
+    console.log('=== EEPROM Serial Init Complete ===');
 }
 
 function setupEventListeners() {
@@ -1065,6 +1606,9 @@ class GeneticConnectorEEPROM {
     init(port) {
         ConnectorManagerEEPROM.connectionsLayer.appendChild(this.element);
         this.element.style.display = 'block';
+        
+        // Add arrowhead marker to the path
+        this.path.setAttribute('marker-end', 'url(#arrow)');
 
         this.isInput = port.isInput;
         this.staticPort = port;
@@ -1100,13 +1644,27 @@ class GeneticConnectorEEPROM {
 
         const dx = Math.abs(x1 - x4) * 0.4; // bezier weight
         
-        const p1x = x1, p1y = y1;
-        const p2x = x1 - dx, p2y = y1;
-        const p4x = x4, p4y = y4;
-        const p3x = x4 + dx, p3y = y4;
+        // Always draw from Start (output) to End (input)
+        // Adapt the curve direction based on relative positions
+        let p1x, p1y, p2x, p2y, p3x, p3y, p4x, p4y;
+        
+        if (x4 < x1) {
+            // Start is left of End: curve right
+            p1x = x4; p1y = y4;  // Start at output (Start component)
+            p2x = x4 + dx; p2y = y4;
+            p4x = x1; p4y = y1;  // End at input (End component)
+            p3x = x1 - dx; p3y = y1;
+        } else {
+            // Start is right of End: curve left
+            p1x = x4; p1y = y4;  // Start at output (Start component)
+            p2x = x4 - dx; p2y = y4;
+            p4x = x1; p4y = y1;  // End at input (End component)
+            p3x = x1 + dx; p3y = y1;
+        }
 
         const pathData = `M${p1x} ${p1y} C ${p2x} ${p2y} ${p3x} ${p3y} ${p4x} ${p4y}`;
         this.path.setAttribute("d", pathData);
+        this.path.setAttribute("marker-end", "url(#arrow)");
         this.pathOutline.setAttribute("d", pathData);
     }
 
@@ -1129,14 +1687,23 @@ class GeneticConnectorEEPROM {
             x: parseFloat(this.dragElement.getAttribute('cx')),
             y: parseFloat(this.dragElement.getAttribute('cy'))
         };
+        
+        console.log('placeHandle called - dragPos:', dragPos);
 
         let targetPort = null;
         const targetComponents = ConnectorManagerEEPROM.getComponentsAtPosition(dragPos);
+        console.log('Components at position:', targetComponents.length);
 
         for (let comp of targetComponents) {
-            if (comp === this.staticPort.component) continue; // Skip same component
+            console.log('Checking component:', comp.type);
+            if (comp === this.staticPort.component) {
+                console.log('Skipping same component');
+                continue; // Skip same component
+            }
             
             const compatiblePorts = this.isInput ? comp.outputPorts : comp.inputPorts;
+            console.log('Compatible ports available:', compatiblePorts.length);
+            
             for (let port of compatiblePorts) {
                 if (this.isValidConnection(port)) {
                     const portPos = port.getGlobalPosition();
@@ -1145,18 +1712,25 @@ class GeneticConnectorEEPROM {
                         Math.pow(dragPos.y - portPos.y, 2)
                     );
                     
-                    if (distance < 20) { // 20px snap distance
+                    console.log('Distance to port:', distance, 'portPos:', portPos);
+                    
+                    if (distance < 50) { // 50px snap distance - increased for easier connection
                         targetPort = port;
+                        console.log('Found target port within snap distance!');
                         break;
                     }
+                } else {
+                    console.log('Connection not valid for this port');
                 }
             }
             if (targetPort) break;
         }
 
         if (targetPort) {
+            console.log('Connecting to target port');
             this.connectToPort(targetPort);
         } else {
+            console.log('No target port found - removing connector');
             this.remove();
         }
     }
@@ -1206,6 +1780,14 @@ class GeneticConnectorEEPROM {
         // Activator Start can only connect to Activator End
         if (sourceType === 'Activator Start' && targetType !== 'Activator End') return false;
         if (sourceType === 'Activator End' && targetType !== 'Activator Start') return false;
+        
+        // Inducer Start can only connect to Inducer End
+        if (sourceType === 'Inducer Start' && targetType !== 'Inducer End') return false;
+        if (sourceType === 'Inducer End' && targetType !== 'Inducer Start') return false;
+        
+        // Inhibitor Start can only connect to Inhibitor End
+        if (sourceType === 'Inhibitor Start' && targetType !== 'Inhibitor End') return false;
+        if (sourceType === 'Inhibitor End' && targetType !== 'Inhibitor Start') return false;
         
         return true;
     }
@@ -1332,11 +1914,18 @@ class GeneticComponentEEPROM {
     createPorts() {
         // Only regulatory components get ports
         console.log(`EEPROM: Creating ports for component: ${this.type}`);
-        if (this.type === 'Repressor Start' || this.type === 'Activator Start') {
-            console.log('EEPROM: Creating output port');
+        
+        // Start components get output ports
+        if (this.type === 'Repressor Start' || this.type === 'Activator Start' || 
+            this.type === 'Inducer Start' || this.type === 'Inhibitor Start') {
+            console.log('EEPROM: Creating output port for Start component');
             this.createOutputPort();
-        } else if (this.type === 'Repressor End' || this.type === 'Activator End') {
-            console.log('EEPROM: Creating input port');
+        } 
+        
+        // End components get input ports
+        if (this.type === 'Repressor End' || this.type === 'Activator End' || 
+            this.type === 'Inducer End' || this.type === 'Inhibitor End') {
+            console.log('EEPROM: Creating input port for End component');
             this.createInputPort();
         }
     }
@@ -1427,17 +2016,31 @@ class ConnectorManagerEEPROM {
 
         this.container.addEventListener('mousedown', (e) => {
             const target = e.target;
-            const dragData = target.getAttribute('data-drag');
+            console.log('MouseDown on:', target, 'Classes:', target.className);
             
-            if (!dragData) return;
+            const dragData = target.getAttribute('data-drag');
+            console.log('data-drag attribute:', dragData);
+            
+            if (!dragData) {
+                // Check if this is a port by class
+                if (target.classList.contains('component-port')) {
+                    console.warn('Port clicked but missing data-drag attribute!', target);
+                }
+                return;
+            }
             
             const [id, type] = dragData.split(':');
+            console.log('Drag type:', type, 'ID:', id);
             
             if (type === 'port') {
                 e.preventDefault();
                 const port = this.portLookup[id];
+                console.log('Port found in lookup:', port);
                 if (port) {
+                    console.log('Starting connector drag from port:', id);
                     this.startConnectorDrag(port, e);
+                } else {
+                    console.error('Port not found in portLookup:', id);
                 }
             } else if (type === 'connector') {
                 e.preventDefault();
@@ -1466,7 +2069,20 @@ class ConnectorManagerEEPROM {
         });
 
         this.container.addEventListener('mouseup', (e) => {
+            console.log('Container MouseUp event - isDragging:', this.isDragging, 'dragTarget:', this.dragTarget);
             if (this.isDragging && this.dragTarget) {
+                console.log('Calling onDragEnd on connector');
+                this.dragTarget.onDragEnd();
+                this.isDragging = false;
+                this.dragTarget = null;
+            }
+        });
+        
+        // Also listen on document for mouseup outside container
+        document.addEventListener('mouseup', (e) => {
+            console.log('Document MouseUp event - isDragging:', this.isDragging);
+            if (this.isDragging && this.dragTarget) {
+                console.log('Calling onDragEnd on connector (from document)');
                 this.dragTarget.onDragEnd();
                 this.isDragging = false;
                 this.dragTarget = null;
@@ -1509,14 +2125,15 @@ class ConnectorManagerEEPROM {
     }
 
     static getComponentsAtPosition(pos) {
+        const margin = 24; // allow snapping slightly outside the cell so edge ports can be reached
         return Object.values(this.componentLookup).filter(comp => {
             const rect = comp.element.getBoundingClientRect();
             const svgRect = document.getElementById('connector-svg').getBoundingClientRect();
             const compX = rect.left - svgRect.left;
             const compY = rect.top - svgRect.top;
             
-            return pos.x >= compX && pos.x <= compX + rect.width &&
-                   pos.y >= compY && pos.y <= compY + rect.height;
+            return pos.x >= compX - margin && pos.x <= compX + rect.width + margin &&
+                   pos.y >= compY - margin && pos.y <= compY + rect.height + margin;
         });
     }
 
@@ -2378,16 +2995,31 @@ function populateBoardFromCellboard(cellboard) {
         cell.classList.remove('has-component');
     });
     
+    // Clear state
+    state.placedComponents = [];
+    state.componentCounts = {};
+    
     let totalComponents = 0;
+    const cellOccupancy = new Map(); // Track which cells are occupied
     
     for (const [componentType, components] of Object.entries(cellboard)) {
         components.forEach(comp => {
             const x = parseInt(comp.x);
             const y = parseInt(comp.y);
+            const cellKey = `${x},${y}`;
+            
+            // Check if cell is already occupied
+            if (cellOccupancy.has(cellKey)) {
+                logLine(`⚠️  Warning: Cell (${x}, ${y}) already has ${cellOccupancy.get(cellKey)}. Skipping duplicate ${componentType}.`);
+                return;
+            }
             
             // Find the corresponding cell
             const cell = document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`);
-            if (!cell) return;
+            if (!cell) {
+                logLine(`⚠️  Warning: Cell at (${x}, ${y}) not found on board.`);
+                return;
+            }
             
             // Create component object
             const component = {
@@ -2398,11 +3030,102 @@ function populateBoardFromCellboard(cellboard) {
             };
             
             createPlacedComponent(cell, component);
+            cellOccupancy.set(cellKey, componentType);
             totalComponents++;
         });
     }
     
     logLine(`Total components placed on board: ${totalComponents}`);
+    
+    // Auto-create connections for Start/End pairs
+    autoConnectRegulatorPairs();
+}
+
+// Automatically create connections between Start and End regulator pairs
+function autoConnectRegulatorPairs() {
+    console.log('🔗 Auto-connecting regulator Start/End pairs...');
+    console.log(`📋 Total placed components: ${state.placedComponents.length}`);
+    console.log('📋 Placed components:', state.placedComponents.map(c => `${c.type} (gene ${c.gene})`));
+    
+    // Group components by regulator type and gene
+    const regulatorPairs = {};
+    
+    state.placedComponents.forEach(comp => {
+        const type = comp.type;
+        console.log(`🔍 Checking component: type="${type}", gene="${comp.gene}"`);
+        
+        // Check if this is a Start or End component
+        if (type.includes(' Start') || type.includes(' End')) {
+            console.log(`  ✓ Found regulator: ${type}`);
+            const baseType = type.replace(' Start', '').replace(' End', '');
+            const position = type.includes(' Start') ? 'start' : 'end';
+            const gene = comp.gene;
+            const key = `${baseType}_${gene}`;
+            console.log(`  📌 Key: ${key}, Position: ${position}`);
+            
+            if (!regulatorPairs[key]) {
+                regulatorPairs[key] = { start: null, end: null, type: baseType };
+            }
+            
+            regulatorPairs[key][position] = comp;
+        }
+    });
+    
+    console.log('📦 Regulator pairs found:', regulatorPairs);
+    
+    // Create connections for complete pairs
+    let connectionsCreated = 0;
+    for (const [key, pair] of Object.entries(regulatorPairs)) {
+        console.log(`🔄 Processing pair ${key}:`, pair);
+        if (pair.start && pair.end) {
+            console.log(`  ✓ Both start and end found for ${key}`);
+            // Find the output port of Start component
+            const startComp = pair.start.componentInstance;
+            const endComp = pair.end.componentInstance;
+            
+            console.log(`  🔌 startComp:`, startComp);
+            console.log(`  🔌 endComp:`, endComp);
+            
+            if (startComp && endComp && startComp.outputPorts.length > 0 && endComp.inputPorts.length > 0) {
+                console.log(`  ✓ Both components have ports`);
+                const outputPort = startComp.outputPorts[0];
+                const inputPort = endComp.inputPorts[0];
+                
+                // Check if connection already exists
+                const alreadyConnected = outputPort.connectors.some(conn => 
+                    conn.inputPort === inputPort || conn.outputPort === inputPort
+                );
+                
+                if (!alreadyConnected) {
+                    // Create the connection using the port's createConnector method
+                    const connector = outputPort.createConnector();
+                    if (connector) {
+                        // Connect to the input port
+                        connector.connectToPort(inputPort);
+                        console.log(`✓ Created connection: ${pair.type} ${pair.start.gene} (Start → End)`);
+                        connectionsCreated++;
+                    } else {
+                        console.log(`✗ Failed to create connector for ${key}`);
+                    }
+                } else {
+                    console.log(`  ⚠️  Connection already exists for ${key}`);
+                }
+            } else {
+                console.log(`  ✗ Missing components or ports for ${key}`);
+                console.log(`    startComp exists: ${!!startComp}`);
+                console.log(`    endComp exists: ${!!endComp}`);
+                if (startComp) console.log(`    startComp outputPorts: ${startComp.outputPorts.length}`);
+                if (endComp) console.log(`    endComp inputPorts: ${endComp.inputPorts.length}`);
+            }
+        } else {
+            console.log(`  ✗ Incomplete pair for ${key}: start=${!!pair.start}, end=${!!pair.end}`);
+        }
+    }
+    
+    console.log(`🔗 Total connections created: ${connectionsCreated}`);
+    if (connectionsCreated > 0) {
+        logLine(`✓ Auto-created ${connectionsCreated} regulator connection(s)`);
+    }
 }
 
 // Run simulation with cellboard data
@@ -2416,34 +3139,237 @@ async function runSimulationFromCellboard(cellboard) {
         
         const result = await response.json();
         
+        // DEBUG: Log the full result
+        console.log('=== BOARD MODE SIMULATION RESULT ===');
+        console.log('Full result:', result);
+        console.log('Circuits:', result.circuits);
+        console.log('Equations:', result.equations);
+        console.log('Regulations:', result.regulations);
+        console.log('Plot exists?', !!result.plot);
+        console.log('plotContainer element:', plotContainer);
+        
         if (result.status === "success") {
+            console.log('=== DISPLAYING RESULTS ===');
             logLine('Hardware circuit simulation completed successfully!');
+            
+            // Clear previous results
+            if (plotContainer) {
+                plotContainer.innerHTML = '';
+            }
+            
+            // Create grid row container for results
+            const gridRow = document.createElement('div');
+            gridRow.className = 'row';
             
             // Display plot
             if (result.plot && plotContainer) {
-                plotContainer.innerHTML = `
-                    <div class="card">
-                        <div class="card-header">
-                            <h5><i class="fas fa-chart-line me-2"></i>Hardware Circuit Simulation</h5>
-                        </div>
-                        <div class="card-body text-center">
-                            <img src="data:image/png;base64,${result.plot}" 
-                                 alt="Hardware Circuit Simulation" 
-                                 class="img-fluid" 
-                                 style="max-width:100%; border-radius: 8px;">
-                        </div>
+                console.log('📊 Displaying plot...');
+                const plotCol = document.createElement('div');
+                plotCol.className = 'col-12 mb-3';
+                const plotCard = document.createElement('div');
+                plotCard.className = 'card';
+                plotCard.innerHTML = `
+                    <div class="card-header">
+                        <h5><i class="fas fa-chart-line me-2"></i>Hardware Circuit Simulation</h5>
+                    </div>
+                    <div class="card-body text-center">
+                        <img src="data:image/png;base64,${result.plot}" 
+                             alt="Hardware Circuit Simulation" 
+                             class="img-fluid" 
+                             style="max-width:100%; border-radius: 8px;">
                     </div>
                 `;
+                plotCol.appendChild(plotCard);
+                plotContainer.appendChild(plotCol);
+                console.log('✅ Plot displayed');
+            } else {
+                console.warn('⚠️ No plot to display. plot:', !!result.plot, 'plotContainer:', !!plotContainer);
             }
             
-            // Log additional information
-            if (result.equations) {
+            // Append grid row to plotContainer for other cards
+            if (plotContainer) {
+                plotContainer.appendChild(gridRow);
+            }
+            
+            // Display LaTeX equations
+            console.log('🔍 Checking equations...', {
+                'result.equations exists': !!result.equations,
+                'result.equations': result.equations,
+                'is object': typeof result.equations === 'object',
+                'keys': result.equations ? Object.keys(result.equations) : 'N/A',
+                'keys length': result.equations ? Object.keys(result.equations).length : 0
+            });
+            
+            if (result.equations && Object.keys(result.equations).length > 0) {
+                console.log('📐 Displaying equations...');
                 logLine(`Generated ${Object.keys(result.equations).length} differential equations.`);
+                
+                const equationsCol = document.createElement('div');
+                equationsCol.className = 'col-12 mb-3';
+                
+                const equationsCard = document.createElement('div');
+                equationsCard.className = 'analysis-card';
+                equationsCard.innerHTML = `
+                    <h4><i class="fas fa-calculator text-warning me-2"></i>Protein Expression Equations</h4>
+                    <div class="equation-display" id="equations-display">
+                    </div>
+                `;
+                
+                equationsCol.appendChild(equationsCard);
+                gridRow.appendChild(equationsCol);
+                
+                const equationsDisplay = document.getElementById('equations-display');
+                
+                Object.entries(result.equations).forEach(([protein, eq]) => {
+                    const eqDiv = document.createElement('div');
+                    eqDiv.className = 'equation-item mb-3 p-3';
+                    
+                    const equationText = eq.latex || eq;
+                    const formattedEquation = `$$${equationText}$$`;
+                    
+                    eqDiv.innerHTML = `
+                        <h6 class="mb-2" style="color: var(--primary);"><i class="fas fa-dna me-2"></i>${protein}</h6>
+                        <div class="equation-latex" style="font-size: 1.1em; margin: 10px 0;">${formattedEquation}</div>
+                        <p class="equation-description mb-0" style="font-size: 0.9em;"><i class="fas fa-info-circle me-1"></i>${eq.description || 'Constitutive production with degradation'}</p>
+                    `;
+                    equationsDisplay.appendChild(eqDiv);
+                });
+                
+                // Render LaTeX with MathJax
+                if (window.MathJax) {
+                    console.log('🔢 Rendering LaTeX with MathJax...');
+                    MathJax.typesetPromise([equationsDisplay]).catch(err => {
+                        console.error('MathJax rendering error:', err);
+                    });
+                } else {
+                    console.warn('⚠️ MathJax not available');
+                }
+                console.log('✅ Equations displayed');
+            } else {
+                console.warn('⚠️ No equations to display. equations:', result.equations);
             }
-            if (result.regulations) {
+            
+            // Display Circuit Information
+            console.log('🔍 Checking circuits...', {
+                'result.circuits exists': !!result.circuits,
+                'result.circuits': result.circuits,
+                'is array': Array.isArray(result.circuits),
+                'length': result.circuits ? result.circuits.length : 0
+            });
+            
+            if (result.circuits && result.circuits.length > 0) {
+                console.log('🔧 Displaying circuit information...');
+                logLine(`Detected ${result.circuits.length} circuit(s).`);
+                
+                const circuitCol = document.createElement('div');
+                circuitCol.className = 'col-md-6 mb-3';
+                
+                const circuitCard = document.createElement('div');
+                circuitCard.className = 'analysis-card';
+                circuitCard.innerHTML = `
+                    <h4><i class="fas fa-check-circle text-success me-2"></i>Modelable Circuits</h4>
+                    <div class="circuit-list" id="circuit-info-display">
+                    </div>
+                `;
+                
+                circuitCol.appendChild(circuitCard);
+                gridRow.appendChild(circuitCol);
+                
+                const circuitDisplay = document.getElementById('circuit-info-display');
+                
+                result.circuits.forEach((circuit, index) => {
+                    const circuitDiv = document.createElement('div');
+                    circuitDiv.className = 'circuit-detail-item';
+                    
+                    let componentsHTML = '<ul class="mb-2">';
+                    if (circuit.components && circuit.components.length > 0) {
+                        circuit.components.forEach(comp => {
+                            const displayName = comp.custom_name || comp.name || comp.type;
+                            componentsHTML += `<li>${displayName}</li>`;
+                        });
+                    } else {
+                        componentsHTML += '<li>No components found</li>';
+                    }
+                    componentsHTML += '</ul>';
+                    
+                    let countsHTML = '';
+                    if (circuit.component_counts) {
+                        countsHTML = '<p class="mb-1"><strong>Component Counts:</strong> ';
+                        Object.entries(circuit.component_counts).forEach(([type, count]) => {
+                            countsHTML += `${type}: ${count}, `;
+                        });
+                        countsHTML = countsHTML.slice(0, -2) + '</p>';
+                    }
+                    
+                    circuitDiv.innerHTML = `
+                        <h6 class="text-primary mb-2"><i class="fas fa-circuit-board me-2"></i>Circuit ${index + 1}: ${circuit.name || 'Unnamed'}</h6>
+                        ${componentsHTML}
+                        ${countsHTML}
+                    `;
+                    circuitDisplay.appendChild(circuitDiv);
+                });
+                console.log('✅ Circuit information displayed');
+            } else {
+                console.warn('⚠️ No circuits to display. circuits:', result.circuits);
+            }
+            
+            // Display Regulation Information
+            console.log('🔍 Checking regulations...', {
+                'result.regulations exists': !!result.regulations,
+                'result.regulations': result.regulations,
+                'is array': Array.isArray(result.regulations),
+                'length': result.regulations ? result.regulations.length : 0
+            });
+            
+            if (result.regulations && result.regulations.length > 0) {
+                console.log('🔗 Displaying regulation network...');
                 const nonConstitutive = result.regulations.filter(r => r.type !== 'constitutive').length;
-                logLine(`Detected ${nonConstitutive} regulatory interactions.`);
+                logLine(`Detected ${nonConstitutive} regulatory interaction(s).`);
+                
+                const regCol = document.createElement('div');
+                regCol.className = 'col-md-6 mb-3';
+                
+                const regCard = document.createElement('div');
+                regCard.className = 'analysis-card';
+                regCard.innerHTML = `
+                    <h4><i class="fas fa-network-wired text-info me-2"></i>Regulatory Networks</h4>
+                    <div class="regulation-list" id="regulation-info-display">
+                    </div>
+                `;
+                
+                regCol.appendChild(regCard);
+                gridRow.appendChild(regCol);
+                
+                const regDisplay = document.getElementById('regulation-info-display');
+                
+                result.regulations.forEach((reg, index) => {
+                    const regDiv = document.createElement('div');
+                    regDiv.className = 'regulation-item';
+                    
+                    const source = reg.source || 'Constitutive';
+                    const target = reg.target || 'Unknown';
+                    const type = reg.type || 'constitutive';
+                    
+                    let explanation = '';
+                    if (type === 'constitutive') {
+                        explanation = 'Constant production (not regulated)';
+                    } else {
+                        explanation = `${source} regulates ${target}`;
+                    }
+                    
+                    regDiv.innerHTML = `
+                        <strong>${source} → ${target}</strong>
+                        <br><small>Type: ${type}, Kr: ${reg.Kr || 'N/A'}, n: ${reg.n || 'N/A'}</small>
+                        <br><em>${explanation}</em>
+                    `;
+                    regDisplay.appendChild(regDiv);
+                });
+                console.log('✅ Regulation network displayed');
+            } else {
+                console.warn('⚠️ No regulations to display. regulations:', result.regulations);
             }
+            
+            console.log('=== RESULTS DISPLAY COMPLETE ===');
             
         } else {
             logLine(`Hardware simulation failed: ${result.message}`);
@@ -2571,7 +3497,7 @@ function populateBoardFromChannelData(channelData) {
             logLine(`Parsing component: "${componentName}"`);
             const component = parseComponentName(componentName);
             if (component) {
-                logLine(`Successfully parsed: ${componentName} → ${component.type} ${component.gene}`);
+                logLine(`✓ Successfully parsed: ${componentName} → ${component.type} (gene ${component.gene})`);
                 // For multiple components in same cell, offset them slightly
                 const offsetCell = cell;
                 if (index > 0) {
@@ -2582,7 +3508,7 @@ function populateBoardFromChannelData(channelData) {
                 createPlacedComponent(offsetCell, component);
                 totalComponents++;
             } else {
-                logLine(`Failed to parse component: "${componentName}"`);
+                logLine(`✗ Failed to parse component: "${componentName}" - parseComponentName returned null`);
             }
         });
         
@@ -2590,6 +3516,9 @@ function populateBoardFromChannelData(channelData) {
     }
     
     logLine(`\nTotal components placed: ${totalComponents}`);
+    
+    // Auto-create connections for Start/End pairs
+    autoConnectRegulatorPairs();
     
     // Run simulation if components were found
     if (totalComponents > 0) {
@@ -2606,8 +3535,11 @@ function parseComponentName(name) {
     // Map based on Excel file component naming format
     const cleanName = name.toLowerCase().trim();
     
+    console.log(`[parseComponentName] Input: "${name}", cleanName: "${cleanName}"`);
+    
     // Check component type based on Excel file format
     if (cleanName.includes('promotor') || cleanName === 'omo') {
+        console.log(`[parseComponentName] Matched: Promoter`);
         return {
             name: name,
             type: 'Promoter',
@@ -2617,6 +3549,7 @@ function parseComponentName(name) {
     }
     
     if (cleanName.startsWith('rbs')) {
+        console.log(`[parseComponentName] Matched: RBS`);
         return {
             name: name,
             type: 'RBS', 
@@ -2626,6 +3559,7 @@ function parseComponentName(name) {
     }
     
     if (cleanName.startsWith('cds')) {
+        console.log(`[parseComponentName] Matched: CDS`);
         return {
             name: name,
             type: 'CDS',
@@ -2635,6 +3569,7 @@ function parseComponentName(name) {
     }
     
     if (cleanName.startsWith('terminator') || cleanName === 'termi') {
+        console.log(`[parseComponentName] Matched: Terminator`);
         return {
             name: name,
             type: 'Terminator',
@@ -2643,7 +3578,91 @@ function parseComponentName(name) {
         };
     }
     
+    // Repressor Start/End detection - check for hardware format first (repressor_b_start)
+    if (cleanName.includes('_start')) {
+        console.log(`[parseComponentName] Contains _start, checking regulator type...`);
+        if (cleanName.startsWith('repressor')) {
+            console.log(`[parseComponentName] Matched: Repressor Start`);
+            return {
+                name: name,
+                type: 'Repressor Start',
+                gene: extractGeneFromName(name),
+                strength: 'norm'
+            };
+        }
+        if (cleanName.startsWith('activator')) {
+            console.log(`[parseComponentName] Matched: Activator Start`);
+            return {
+                name: name,
+                type: 'Activator Start',
+                gene: extractGeneFromName(name),
+                strength: 'norm'
+            };
+        }
+        if (cleanName.startsWith('inducer')) {
+            console.log(`[parseComponentName] Matched: Inducer Start`);
+            return {
+                name: name,
+                type: 'Inducer Start',
+                gene: extractGeneFromName(name),
+                strength: 'norm'
+            };
+        }
+        if (cleanName.startsWith('inhibitor')) {
+            console.log(`[parseComponentName] Matched: Inhibitor Start`);
+            return {
+                name: name,
+                type: 'Inhibitor Start',
+                gene: extractGeneFromName(name),
+                strength: 'norm'
+            };
+        }
+    }
+    
+    // Repressor/Activator/Inducer/Inhibitor End detection
+    if (cleanName.includes('_end')) {
+        console.log(`[parseComponentName] Contains _end, checking regulator type...`);
+        if (cleanName.startsWith('repressor')) {
+            console.log(`[parseComponentName] Matched: Repressor End`);
+            return {
+                name: name,
+                type: 'Repressor End',
+                gene: extractGeneFromName(name),
+                strength: 'norm'
+            };
+        }
+        if (cleanName.startsWith('activator')) {
+            console.log(`[parseComponentName] Matched: Activator End`);
+            return {
+                name: name,
+                type: 'Activator End',
+                gene: extractGeneFromName(name),
+                strength: 'norm'
+            };
+        }
+        if (cleanName.startsWith('inducer')) {
+            console.log(`[parseComponentName] Matched: Inducer End`);
+            return {
+                name: name,
+                type: 'Inducer End',
+                gene: extractGeneFromName(name),
+                strength: 'norm'
+            };
+        }
+        if (cleanName.startsWith('inhibitor')) {
+            console.log(`[parseComponentName] Matched: Inhibitor End`);
+            return {
+                name: name,
+                type: 'Inhibitor End',
+                gene: extractGeneFromName(name),
+                strength: 'norm'
+            };
+        }
+    }
+    
+    // Generic repressor (fallback for backward compatibility)
     if (cleanName.startsWith('repressor') || cleanName.startsWith('r_') || cleanName === 'r_a' || cleanName === 'r_b') {
+        console.log(`[parseComponentName] Matched: Generic Repressor`);
         return {
             name: name,
             type: 'Repressor',
@@ -2652,7 +3671,9 @@ function parseComponentName(name) {
         };
     }
     
+    // Generic activator (fallback for backward compatibility)
     if (cleanName.startsWith('activator')) {
+        console.log(`[parseComponentName] Matched: Generic Activator`);
         return {
             name: name,
             type: 'Activator',
@@ -2660,6 +3681,9 @@ function parseComponentName(name) {
             strength: 'norm'
         };
     }
+    
+    console.log(`[parseComponentName] No match found for: "${cleanName}"`);
+    return null;
     
     if (cleanName === 'or' || cleanName === 'or_a' || cleanName.includes('operator')) {
         return {
@@ -2684,7 +3708,7 @@ function extractGeneFromName(name) {
 // Create visual component on board AND add to state
 function createPlacedComponent(cell, component) {
     const placedEl = document.createElement("div");
-    placedEl.className = "placed-component";
+    placedEl.className = "placed-component has-parameters";
     placedEl.textContent = component.name;
     placedEl.dataset.component = component.type;
     placedEl.dataset.gene = component.gene;
@@ -2699,7 +3723,11 @@ function createPlacedComponent(cell, component) {
         'Repressor Start': '#A78BFA',
         'Repressor End': '#7E22CE',
         'Activator Start': '#3B82F6',
-        'Activator End': '#1E40AF'
+        'Activator End': '#1E40AF',
+        'Inducer Start': '#14B8A6',
+        'Inducer End': '#0D9488',
+        'Inhibitor Start': '#F97316',
+        'Inhibitor End': '#EA580C'
     };
     
     placedEl.style.backgroundColor = colors[component.type] || '#999';
@@ -2709,9 +3737,6 @@ function createPlacedComponent(cell, component) {
     placedEl.style.padding = '2px';
     placedEl.style.borderRadius = '2px';
     placedEl.style.textAlign = 'center';
-    
-    cell.appendChild(placedEl);
-    cell.classList.add('has-component');
     
     // IMPORTANT: Add to state so simulation can find it
     const x = cell.dataset.x;
@@ -2729,6 +3754,7 @@ function createPlacedComponent(cell, component) {
         type: component.type,
         number: state.componentCounts[baseType],
         strength: component.strength || 'norm',
+        gene: component.gene, // CRITICAL: Add gene property for regulator pairing
         x: x,
         y: y,
         id: Date.now() + Math.random(),
@@ -2737,6 +3763,29 @@ function createPlacedComponent(cell, component) {
     };
     
     state.placedComponents.push(stateComponent);
+    
+    // Add click event for parameter editing (CRITICAL FIX)
+    placedEl.addEventListener('click', function(e) {
+        e.stopPropagation();
+        showComponentParameterModal(x, y, component.type, state.componentCounts[baseType], stateComponent);
+    });
+    
+    placedEl.title = `${component.type} - Click to edit parameters`;
+    
+    cell.appendChild(placedEl);
+    cell.classList.add('has-component', 'filled');
+    
+    // Register component with connector system if it's a regulator
+    if (REGULATOR_TYPES.includes(component.type)) {
+        console.log(`Registering regulator component: ${component.type}`);
+        const connectorComp = registerComponentWithConnectorSystem(stateComponent, cell);
+        if (connectorComp) {
+            console.log(`Connector component created with ${connectorComp.inputPorts.length} input ports and ${connectorComp.outputPorts.length} output ports`);
+            // CRITICAL: Store componentInstance reference for auto-connection
+            stateComponent.componentInstance = connectorComp;
+        }
+    }
+    
     console.log(`Added component to state: ${component.type} at (${x}, ${y})`);
 }
 
@@ -3045,6 +4094,8 @@ async function runSimulationFromPlacedComponents() {
         
         domComponents.forEach((el, i) => {
             const cell = el.parentElement;
+            const x = parseInt(cell.dataset.x);
+            const y = parseInt(cell.dataset.y);
             const componentType = el.dataset.component || el.textContent.split(' ')[0] || 'Unknown';
             
             if (!cellboard[componentType]) {
@@ -3059,15 +4110,40 @@ async function runSimulationFromPlacedComponents() {
                 componentCounts[baseType]++;
             }
             
-            cellboard[componentType].push({
-                x: cell.dataset.x,
-                y: cell.dataset.y,
+            // Find the original component object with parameters
+            let existingComponent = null;
+            
+            // Check state.placedComponents first
+            if (state.placedComponents) {
+                existingComponent = state.placedComponents.find(comp => comp.x === x && comp.y === y);
+            }
+            
+            // Check state.cellboard if not found
+            if (!existingComponent && state.cellboard) {
+                for (const components of Object.values(state.cellboard)) {
+                    existingComponent = components.find(comp => comp.x === x && comp.y === y);
+                    if (existingComponent) break;
+                }
+            }
+            
+            // Create component object with all properties including parameters
+            const componentData = {
+                x: x,
+                y: y,
                 type: componentType,
                 strength: el.dataset.strength || 'norm',
                 number: componentCounts[baseType]
-            });
+            };
             
-            console.log(`Component ${i+1}: ${componentType} at (${cell.dataset.x}, ${cell.dataset.y})`);
+            // Include parameters if they exist
+            if (existingComponent && existingComponent.parameters) {
+                componentData.parameters = existingComponent.parameters;
+                console.log(`Component ${i+1}: ${componentType} at (${x}, ${y}) - HAS PARAMETERS:`, existingComponent.parameters);
+            } else {
+                console.log(`Component ${i+1}: ${componentType} at (${x}, ${y}) - no parameters`);
+            }
+            
+            cellboard[componentType].push(componentData);
         });
         
         console.log('Prepared cellboard:', cellboard);
@@ -3078,27 +4154,59 @@ async function runSimulationFromPlacedComponents() {
         // Add dial data if available
         if (dialForm) {
             const toggle = document.getElementById('enable_dial_params');
-            const includeDial = toggle ? toggle.checked : true;
-            requestData.apply_dial = !!includeDial;
+            const includeDial = toggle ? toggle.checked : false;
+            requestData.apply_dial = includeDial;
             
+            const dialData = {};
+            
+            // Always collect global parameters (either from form or defaults)
             if (includeDial) {
-                const dialData = {};
+                // Collect global parameters from dial form
                 const inputs = dialForm.querySelectorAll('input[type="number"]:not([disabled])');
-                console.log(`Collecting ${inputs.length} parameter inputs`);
+                console.log(`[COLLECT] Collecting ${inputs.length} global parameter inputs`);
                 
                 inputs.forEach(input => {
-                    const paramName = input.name || input.id; // Fallback to id if name is missing
+                    const paramName = input.name || input.id;
                     const value = parseFloat(input.value);
                     if (!isNaN(value) && paramName) {
                         dialData[paramName] = value;
-                        console.log(`  - ${paramName}: ${value}`);
+                        console.log(`  [COLLECT] Global - ${paramName}: ${value}`);
                     }
                 });
                 
+                // Collect component-specific parameters from cellboard
+                let componentParamCount = 0;
+                console.log(`[COLLECT] Scanning cellboard for component parameters...`);
+                Object.entries(cellboard).forEach(([type, components]) => {
+                    console.log(`[COLLECT] Type "${type}" has ${components.length} components`);
+                    components.forEach((comp, idx) => {
+                        if (comp.parameters) {
+                            console.log(`[COLLECT]   Component ${idx} has parameters:`, comp.parameters);
+                            Object.entries(comp.parameters).forEach(([paramId, paramValue]) => {
+                                dialData[paramId] = paramValue;
+                                componentParamCount++;
+                                console.log(`[COLLECT]     Added ${paramId} = ${paramValue}`);
+                            });
+                        }
+                    });
+                });
+                
                 requestData.dial = dialData;
-                console.log('Dial parameters collected:', Object.keys(dialData).length, 'parameters:', dialData);
+                console.log(`[COLLECT] Dial parameters collected: ${Object.keys(dialData).length} total`);
+                console.log('[COLLECT] Final dialData:', dialData);
             } else {
-                console.log('Dial parameters disabled by toggle');
+                // When toggle is OFF, send default values of 1.0 for all global parameters
+                // Do NOT include any custom component parameters - use defaults only
+                console.log('⚠️ TOGGLE IS OFF - Sending default values (1.0) for ALL global parameters');
+                console.log('   Custom component parameters will be IGNORED - using base defaults');
+                dialData.global_transcription_rate = 1.0;
+                dialData.global_translation_rate = 1.0;
+                dialData.global_degradation_rate = 1.0;
+                dialData.temperature_factor = 1.0;
+                dialData.resource_availability = 1.0;
+                requestData.dial = dialData;
+                console.log('[COLLECT] Default dialData (all 1.0):', dialData);
+                console.log('✓ Sending to backend: apply_dial=false, all global params=1.0, NO custom component params');
             }
         } else {
             console.warn('No dial form found - parameters will not be applied');
@@ -3127,11 +4235,470 @@ async function runSimulationFromPlacedComponents() {
         if (result.status === 'success') {
             // Display results
             if (result.plot && plotContainer) {
-                plotContainer.innerHTML = `
-                    <img src="data:image/png;base64,${result.plot}" 
-                         alt="Simulation Results" 
-                         class="plot-image">
-                `;
+                // Clear and display full results
+                plotContainer.innerHTML = '';
+                
+                // Create main results container
+                const resultsDiv = document.createElement('div');
+                resultsDiv.className = 'simulation-results';
+                
+                // Plot image
+                console.log('📊 Displaying plot...');
+                const plotImg = document.createElement('img');
+                plotImg.src = `data:image/png;base64,${result.plot}`;
+                plotImg.className = 'simulation-plot';
+                plotImg.alt = 'Simulation Results';
+                plotImg.style.maxWidth = '100%';
+                plotImg.style.height = 'auto';
+                plotImg.style.borderRadius = '8px';
+                plotImg.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+                resultsDiv.appendChild(plotImg);
+                
+                // Add equations if available (BEFORE circuit analysis)
+                if (result.equations) {
+                    console.log('📐 Displaying equations...');
+                    const equationsDiv = document.createElement('div');
+                    equationsDiv.className = 'equations-container';
+                    equationsDiv.innerHTML = '<h3>Circuit Equations</h3>';
+                    
+                    Object.entries(result.equations).forEach(([protein, eq]) => {
+                        const eqDiv = document.createElement('div');
+                        eqDiv.className = 'equation-item';
+                        
+                        const equationText = eq.latex || eq;
+                        const formattedEquation = equationText.includes('\\') ? `$$${equationText}$$` : `$$${equationText}$$`;
+                        
+                        eqDiv.innerHTML = `
+                            <h4>${protein}</h4>
+                            <div class="equation-latex">${formattedEquation}</div>
+                            <p class="equation-description">${eq.description || 'Constitutive protein production with degradation'}</p>
+                        `;
+                        equationsDiv.appendChild(eqDiv);
+                    });
+                    
+                    resultsDiv.appendChild(equationsDiv);
+                }
+                
+                // Add circuit information
+                if (result.circuits && result.circuits.length > 0) {
+                    console.log('🔧 Displaying circuit analysis...');
+                    const circuitInfo = document.createElement('div');
+                    circuitInfo.className = 'circuit-info';
+                    
+                    // Calculate circuit health summary
+                    let completeCircuits = 0;
+                    let totalIssues = 0;
+                    
+                    result.circuits.forEach(circuit => {
+                        const counts = circuit.component_counts || {};
+                        let hasIssues = false;
+                        
+                        if (!counts.promoter || !counts.rbs || !counts.cds) {
+                            hasIssues = true;
+                            totalIssues++;
+                        }
+                        if (!hasIssues) completeCircuits++;
+                    });
+                    
+                    let circuitDetailsHTML = `
+                        <h3>Circuit Analysis</h3>
+                        <p><em>The system automatically groups your placed components into functional genetic circuits. Each circuit represents a complete gene expression unit.</em></p>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <strong>Circuits Detected:</strong> ${result.circuits.length}
+                            </div>
+                            <div class="info-item">
+                                <strong>Complete Circuits:</strong> ${completeCircuits}/${result.circuits.length}
+                            </div>
+                            <div class="info-item">
+                                <strong>Components Analyzed:</strong> ${result.components_analyzed || 0}
+                            </div>
+                            <div class="info-item">
+                                <strong>Regulations:</strong> ${result.regulations ? result.regulations.length : 0}
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Add detailed circuit breakdown
+                    circuitDetailsHTML += '<div class="circuit-details">';
+                    result.circuits.forEach((circuit, index) => {
+                        circuitDetailsHTML += `
+                            <div class="circuit-detail-item">
+                                <h4>Circuit ${index + 1}: ${circuit.name}</h4>
+                                <div class="component-breakdown">
+                                    <strong>Components:</strong>
+                                    <ul>
+                        `;
+                        
+                        if (circuit.components) {
+                            circuit.components.forEach(comp => {
+                                const displayName = comp.custom_name || comp.name || `${comp.type}`;
+                                circuitDetailsHTML += `<li>${displayName}</li>`;
+                            });
+                        } else {
+                            circuitDetailsHTML += '<li>No components found</li>';
+                        }
+                        
+                        circuitDetailsHTML += '</ul>';
+                        
+                        // Show component counts and missing components analysis
+                        if (circuit.component_counts) {
+                            circuitDetailsHTML += '<div class="counts"><strong>Counts:</strong> ';
+                            Object.entries(circuit.component_counts).forEach(([type, count]) => {
+                                circuitDetailsHTML += `${type}: ${count}, `;
+                            });
+                            circuitDetailsHTML = circuitDetailsHTML.slice(0, -2) + '</div>';
+                            
+                            // Analyze missing components
+                            const missingComponents = [];
+                            const warnings = [];
+                            
+                            if (!circuit.component_counts.promoter || circuit.component_counts.promoter === 0) {
+                                missingComponents.push('Promoter - needed to initiate transcription');
+                            }
+                            if (!circuit.component_counts.rbs || circuit.component_counts.rbs === 0) {
+                                missingComponents.push('RBS - needed for translation initiation');
+                            }
+                            if (!circuit.component_counts.cds || circuit.component_counts.cds === 0) {
+                                missingComponents.push('CDS - needed to define the protein product');
+                            }
+                            if (!circuit.component_counts.terminator || circuit.component_counts.terminator === 0) {
+                                warnings.push('Terminator - recommended to prevent transcriptional read-through');
+                            }
+                            
+                            // Check for imbalanced components
+                            if (circuit.component_counts.cds && circuit.component_counts.rbs) {
+                                if (circuit.component_counts.rbs < circuit.component_counts.cds) {
+                                    warnings.push(`Need more RBS elements: ${circuit.component_counts.rbs} RBS for ${circuit.component_counts.cds} CDS`);
+                                }
+                            }
+                            
+                            if (missingComponents.length > 0) {
+                                circuitDetailsHTML += '<div class="missing-components"><strong>Missing Critical Components:</strong><ul>';
+                                missingComponents.forEach(missing => {
+                                    circuitDetailsHTML += `<li>${missing}</li>`;
+                                });
+                                circuitDetailsHTML += '</ul></div>';
+                            }
+                            
+                            if (warnings.length > 0) {
+                                circuitDetailsHTML += '<div class="component-warnings"><strong>Recommendations:</strong><ul>';
+                                warnings.forEach(warning => {
+                                    circuitDetailsHTML += `<li>${warning}</li>`;
+                                });
+                                circuitDetailsHTML += '</ul></div>';
+                            }
+                            
+                            // Show circuit completeness status
+                            if (missingComponents.length === 0) {
+                                circuitDetailsHTML += '<div class="circuit-status complete">Circuit is functionally complete</div>';
+                            } else {
+                                circuitDetailsHTML += '<div class="circuit-status incomplete">Circuit is incomplete - missing critical components</div>';
+                            }
+                        }
+                        
+                        circuitDetailsHTML += '</div></div>';
+                    });
+                    circuitDetailsHTML += '</div>';
+                    
+                    circuitInfo.innerHTML = circuitDetailsHTML;
+                    resultsDiv.appendChild(circuitInfo);
+                }
+                
+                // Add global parameters information card
+                if (result.global_parameters_applied !== undefined) {
+                    console.log('🎛️ Displaying global parameters info...');
+                    const globalParamsInfo = document.createElement('div');
+                    globalParamsInfo.className = 'global-params-info';
+                    
+                    let globalHTML = `
+                        <h3>Global Parameter Effects</h3>
+                        <p><em>Shows how global multipliers affect all circuit components in the calculation.</em></p>
+                    `;
+                    
+                    if (result.global_parameters_applied && result.global_parameters && Object.keys(result.global_parameters).length > 0) {
+                        globalHTML += `<div class="global-status active">Global Parameters ACTIVE</div>`;
+                        globalHTML += '<div class="global-params-grid">';
+                        
+                        const paramDescriptions = {
+                            'global_transcription_rate': {
+                                name: 'Transcription Rate',
+                                affects: 'All promoter strengths',
+                                calculation: 'Multiplies promoter strength in: kprod = promoter_strength × RBS_efficiency',
+                                color: '#4ECDC4'
+                            },
+                            'global_translation_rate': {
+                                name: 'Translation Rate',
+                                affects: 'All RBS efficiency & CDS translation rates',
+                                calculation: 'Multiplies RBS efficiency and CDS translation rates in protein production',
+                                color: '#95E1D3'
+                            },
+                            'global_degradation_rate': {
+                                name: 'Degradation Rate',
+                                affects: 'All protein degradation rates',
+                                calculation: 'Multiplies degradation term in: dpdt = production - degradation_rate × [protein]',
+                                color: '#FFD166'
+                            },
+                            'temperature_factor': {
+                                name: 'Temperature',
+                                affects: 'All enzymatic reaction rates',
+                                calculation: 'Multiplies promoter strength and CDS translation rates (simulates temperature effects)',
+                                color: '#FF6B6B'
+                            },
+                            'resource_availability': {
+                                name: 'Resources',
+                                affects: 'Transcription & translation capacity',
+                                calculation: 'Multiplies promoter strength and RBS efficiency (simulates resource limitations)',
+                                color: '#F8B739'
+                            }
+                        };
+                        
+                        Object.entries(result.global_parameters).forEach(([key, value]) => {
+                            const info = paramDescriptions[key];
+                            if (info && !key.includes('_strength') && !key.includes('_efficiency') && !key.includes('_rate') && !key.includes('_concentration')) {
+                                const multiplier = parseFloat(value);
+                                let effect = 'No change';
+                                let effectColor = '#999';
+                                
+                                if (multiplier > 1) {
+                                    effect = `+${((multiplier - 1) * 100).toFixed(0)}% increase`;
+                                    effectColor = '#2ECC71';
+                                } else if (multiplier < 1) {
+                                    effect = `${((1 - multiplier) * 100).toFixed(0)}% decrease`;
+                                    effectColor = '#E74C3C';
+                                }
+                                
+                                globalHTML += `
+                                    <div class="global-param-card" style="border-left: 4px solid ${info.color};">
+                                        <div class="param-header">
+                                            <strong>${info.name}</strong>
+                                        </div>
+                                        <div class="param-value">Multiplier: <strong>${multiplier.toFixed(2)}x</strong></div>
+                                        <div class="param-effect" style="color: ${effectColor};">${effect}</div>
+                                        <div class="param-affects"><small><strong>Affects:</strong> ${info.affects}</small></div>
+                                        <div class="param-affects" style="margin-top: 5px; opacity: 0.7;"><small><strong>Calculation:</strong> ${info.calculation}</small></div>
+                                    </div>
+                                `;
+                            }
+                        });
+                        
+                        globalHTML += '</div>';
+                    } else {
+                        globalHTML += `
+                            <div class="global-status inactive">Global Parameters DISABLED</div>
+                            <p style="color: #999; margin-top: 1rem;">
+                                Toggle the switch above to apply global multipliers to all components.
+                                When disabled, components use their individual parameter values only.
+                            </p>
+                        `;
+                    }
+                    
+                    globalParamsInfo.innerHTML = globalHTML;
+                    resultsDiv.appendChild(globalParamsInfo);
+                }
+                
+                // Add regulation information
+                if (result.regulations && result.regulations.length > 0) {
+                    console.log('🔗 Displaying regulatory network...');
+                    const regulationInfo = document.createElement('div');
+                    regulationInfo.className = 'regulation-info';
+                    
+                    let regulationHTML = `
+                        <h3>Regulatory Network</h3>
+                        <p><em>Shows how proteins regulate each other's production. "Constitutive" means constant production without regulation.</em></p>
+                        <div class="regulation-list">
+                    `;
+                    
+                    result.regulations.forEach((regulation, index) => {
+                        const source = regulation.source || 'Constitutive';
+                        const target = regulation.target || 'Unknown';
+                        const type = regulation.type || 'constitutive';
+                        const params = regulation.parameters || {};
+                        const isFloating = params.is_floating || false;
+                        
+                        // Determine regulation type color and label
+                        let typeColor = '#666';
+                        let typeLabel = type;
+                        
+                        if (type === 'constitutive') {
+                            typeColor = '#4ECDC4';
+                            typeLabel = 'Constitutive';
+                        } else if (type === 'transcriptional_repression') {
+                            typeColor = '#FF6B6B';
+                            typeLabel = 'Repression';
+                        } else if (type === 'self_repression') {
+                            typeColor = '#E74C3C';
+                            typeLabel = 'Self-Repression';
+                        } else if (type === 'transcriptional_activation') {
+                            typeColor = '#95E1D3';
+                            typeLabel = 'Activation';
+                        } else if (type === 'self_activation') {
+                            typeColor = '#2ECC71';
+                            typeLabel = 'Self-Activation';
+                        } else if (type === 'induced_activation') {
+                            typeColor = '#F8B739';
+                            typeLabel = 'Induced Activation';
+                        } else if (type === 'environmental_repression') {
+                            typeColor = '#E67E22';
+                            typeLabel = 'Environmental Repression';
+                        }
+                        
+                        let explanation = '';
+                        if (type === 'constitutive' || source === 'Unknown' || source === 'Constitutive') {
+                            explanation = 'This promoter produces protein at a constant rate (not regulated by other proteins)';
+                        } else if (type === 'self_repression') {
+                            explanation = `${source} protein inhibits its own promoter ${target} (negative feedback loop)`;
+                        } else if (type === 'self_activation') {
+                            explanation = `${source} protein activates its own promoter ${target} (positive feedback loop)`;
+                        } else if (type === 'transcriptional_repression') {
+                            explanation = `${source} protein inhibits ${target} transcription`;
+                        } else if (type === 'transcriptional_activation') {
+                            explanation = `${source} protein activates ${target} transcription`;
+                        } else if (type === 'induced_activation') {
+                            explanation = `Environmental inducer ${source} activates ${target} transcription`;
+                        } else if (type === 'environmental_repression') {
+                            explanation = `Environmental inhibitor ${source} represses ${target} transcription`;
+                        } else {
+                            explanation = `${source} protein regulates ${target} transcription`;
+                        }
+                        
+                        // Build parameter display
+                        let paramStr = '';
+                        if (params.Kr !== undefined) {
+                            paramStr += `Kr=${params.Kr.toFixed(3)}`;
+                        } else if (params.Ka !== undefined) {
+                            paramStr += `Ka=${params.Ka.toFixed(3)}`;
+                        }
+                        if (params.n !== undefined) {
+                            if (paramStr) paramStr += ', ';
+                            paramStr += `n=${params.n.toFixed(1)}`;
+                        }
+                        if (params.concentration !== undefined) {
+                            if (paramStr) paramStr += ', ';
+                            paramStr += `Conc=${params.concentration.toFixed(2)}`;
+                        }
+                        
+                        const floatingBadge = isFloating ? '<span class="badge badge-floating">External</span>' : '<span class="badge badge-internal">Internal</span>';
+                        
+                        regulationHTML += `
+                            <div class="regulation-item" style="border-left: 4px solid ${typeColor};">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                    <strong style="color: ${typeColor};">Regulation ${index + 1}: ${typeLabel}</strong>
+                                    ${floatingBadge}
+                                </div>
+                                <div style="font-size: 1.1em; margin: 8px 0;">
+                                    ${source} → ${target}
+                                </div>
+                                ${paramStr ? `<small style="color: #999;">Strength: ${paramStr}</small><br>` : ''}
+                                <em style="color: #AAA;">${explanation}</em>
+                            </div>
+                        `;
+                    });
+                    
+                    regulationHTML += '</div>';
+                    regulationInfo.innerHTML = regulationHTML;
+                    resultsDiv.appendChild(regulationInfo);
+                }
+                
+                // Display component parameters
+                if (result.component_parameters && result.component_parameters.length > 0) {
+                    console.log('⚙️ Displaying component parameters...');
+                    const paramsInfo = document.createElement('div');
+                    paramsInfo.className = 'component-params-info';
+                    
+                    let paramsHTML = '<h3>Component Parameters</h3>';
+                    
+                    result.component_parameters.forEach(comp => {
+                        paramsHTML += `
+                            <div class="parameter-item">
+                                <h4>
+                                    <i class="fas fa-cube me-2"></i>${comp.name} 
+                                    <span class="badge">${comp.type}</span>
+                                </h4>
+                        `;
+                        
+                        if (comp.parameters && Object.keys(comp.parameters).length > 0) {
+                            paramsHTML += '<table class="params-table">';
+                            Object.entries(comp.parameters).forEach(([key, value]) => {
+                                const displayKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                                const displayValue = typeof value === 'number' ? value.toFixed(4) : value;
+                                
+                                // Add calculation explanation if global parameters were applied
+                                let calculation = '';
+                                if (result.global_parameters_applied && result.global_parameters) {
+                                    const globals = result.global_parameters;
+                                    
+                                    if (comp.type === 'Promoter' && key === 'strength') {
+                                        const factors = [];
+                                        if (globals.global_transcription_rate && globals.global_transcription_rate !== 1.0) {
+                                            factors.push(`transcription(${globals.global_transcription_rate.toFixed(2)}x)`);
+                                        }
+                                        if (globals.temperature_factor && globals.temperature_factor !== 1.0) {
+                                            factors.push(`temp(${globals.temperature_factor.toFixed(2)}x)`);
+                                        }
+                                        if (globals.resource_availability && globals.resource_availability !== 1.0) {
+                                            factors.push(`resources(${globals.resource_availability.toFixed(2)}x)`);
+                                        }
+                                        if (factors.length > 0) {
+                                            calculation = `<br><small style="color: #95E1D3; font-style: italic;">Applied: ${factors.join(' × ')}</small>`;
+                                        }
+                                    } else if (comp.type === 'RBS' && key === 'efficiency') {
+                                        const factors = [];
+                                        if (globals.global_translation_rate && globals.global_translation_rate !== 1.0) {
+                                            factors.push(`translation(${globals.global_translation_rate.toFixed(2)}x)`);
+                                        }
+                                        if (globals.resource_availability && globals.resource_availability !== 1.0) {
+                                            factors.push(`resources(${globals.resource_availability.toFixed(2)}x)`);
+                                        }
+                                        if (factors.length > 0) {
+                                            calculation = `<br><small style="color: #95E1D3; font-style: italic;">Applied: ${factors.join(' × ')}</small>`;
+                                        }
+                                    } else if (comp.type === 'CDS') {
+                                        if (key === 'translation_rate') {
+                                            const factors = [];
+                                            if (globals.global_translation_rate && globals.global_translation_rate !== 1.0) {
+                                                factors.push(`translation(${globals.global_translation_rate.toFixed(2)}x)`);
+                                            }
+                                            if (globals.temperature_factor && globals.temperature_factor !== 1.0) {
+                                                factors.push(`temp(${globals.temperature_factor.toFixed(2)}x)`);
+                                            }
+                                            if (factors.length > 0) {
+                                                calculation = `<br><small style="color: #95E1D3; font-style: italic;">Applied: ${factors.join(' × ')}</small>`;
+                                            }
+                                        } else if (key === 'degradation_rate') {
+                                            if (globals.global_degradation_rate && globals.global_degradation_rate !== 1.0) {
+                                                calculation = `<br><small style="color: #FFD166; font-style: italic;">Applied: degradation(${globals.global_degradation_rate.toFixed(2)}x)</small>`;
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                paramsHTML += `
+                                    <tr>
+                                        <td class="param-name">${displayKey}:</td>
+                                        <td class="param-value">${displayValue}${calculation}</td>
+                                    </tr>
+                                `;
+                            });
+                            paramsHTML += '</table>';
+                        }
+                        
+                        paramsHTML += '</div>';
+                    });
+                    
+                    paramsInfo.innerHTML = paramsHTML;
+                    resultsDiv.appendChild(paramsInfo);
+                }
+                
+                plotContainer.appendChild(resultsDiv);
+                
+                // Render LaTeX equations if MathJax is available
+                if (window.MathJax) {
+                    MathJax.typesetPromise([plotContainer]).catch(err => {
+                        console.error('MathJax error:', err);
+                    });
+                }
+                
             } else if (plotContainer) {
                 plotContainer.innerHTML = '<p class="text-center">Simulation completed successfully</p>';
             }
@@ -3344,3 +4911,116 @@ window.testAllButtons = function() {
 };
 
 // Removed entire duplicate script section that was causing component selection conflicts
+
+// ===== GLOBAL MODE FUNCTIONALITY =====
+/**
+ * Initialize global mode toggle and event listeners
+ * This allows global parameters to automatically update all component parameters
+ */
+function initGlobalMode() {
+    const globalModeToggle = document.getElementById('global_mode_enabled');
+    const globalTranscription = document.getElementById('global_transcription_rate');
+    const globalTranslation = document.getElementById('global_translation_rate');
+    const globalDegradation = document.getElementById('global_degradation_rate');
+    
+    if (!globalModeToggle) {
+        console.warn('Global mode toggle not found - feature disabled');
+        return;
+    }
+    
+    // Listen to global mode toggle changes
+    globalModeToggle.addEventListener('change', function() {
+        if (this.checked) {
+            console.log('Global mode ENABLED - applying global parameters to all components');
+            applyGlobalParametersToComponents();
+        } else {
+            console.log('Global mode DISABLED - resetting components to default values');
+            resetComponentsToDefaults();
+        }
+    });
+    
+    // Listen to global parameter changes
+    if (globalTranscription) {
+        globalTranscription.addEventListener('input', function() {
+            if (globalModeToggle.checked) {
+                updateComponentsByType('transcription', parseFloat(this.value));
+            }
+        });
+    }
+    
+    if (globalTranslation) {
+        globalTranslation.addEventListener('input', function() {
+            if (globalModeToggle.checked) {
+                updateComponentsByType('translation', parseFloat(this.value));
+            }
+        });
+    }
+    
+    if (globalDegradation) {
+        globalDegradation.addEventListener('input', function() {
+            if (globalModeToggle.checked) {
+                updateComponentsByType('degradation', parseFloat(this.value));
+            }
+        });
+    }
+    
+    console.log('Global mode initialized successfully');
+}
+
+/**
+ * Apply current global parameters to all matching component parameters
+ */
+function applyGlobalParametersToComponents() {
+    const globalTranscription = parseFloat(document.getElementById('global_transcription_rate')?.value || 1.0);
+    const globalTranslation = parseFloat(document.getElementById('global_translation_rate')?.value || 1.0);
+    const globalDegradation = parseFloat(document.getElementById('global_degradation_rate')?.value || 1.0);
+    
+    updateComponentsByType('transcription', globalTranscription);
+    updateComponentsByType('translation', globalTranslation);
+    updateComponentsByType('degradation', globalDegradation);
+}
+
+/**
+ * Update all component parameters of a specific type with a global multiplier
+ * @param {string} paramType - 'transcription', 'translation', or 'degradation'
+ * @param {number} globalValue - The global multiplier value
+ */
+function updateComponentsByType(paramType, globalValue) {
+    const inputs = document.querySelectorAll(`#dial-form input[data-param-type="${paramType}"]`);
+    
+    inputs.forEach(input => {
+        const defaultValue = parseFloat(input.getAttribute('data-default-value') || 1.0);
+        const newValue = defaultValue * globalValue;
+        
+        // Round to appropriate step value
+        const step = parseFloat(input.step) || 0.1;
+        const rounded = Math.round(newValue / step) * step;
+        
+        input.value = rounded.toFixed(2);
+        
+        console.log(`Updated ${input.id}: ${defaultValue} × ${globalValue} = ${rounded.toFixed(2)}`);
+    });
+}
+
+/**
+ * Reset all component parameters to their default values from constants.py
+ */
+function resetComponentsToDefaults() {
+    const inputs = document.querySelectorAll('#dial-form input[data-default-value]');
+    
+    inputs.forEach(input => {
+        const defaultValue = input.getAttribute('data-default-value');
+        if (defaultValue) {
+            input.value = defaultValue;
+            console.log(`Reset ${input.id} to default: ${defaultValue}`);
+        }
+    });
+}
+
+// Initialize global mode when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    // Delay initialization to ensure all elements are created
+    setTimeout(() => {
+        initGlobalMode();
+    }, 500);
+});
