@@ -22,6 +22,13 @@ class Component:
         self.id = f"{self.type}_{mux_chr}{channel}"
         self.strength = strength  # Store strength parameter
         
+        #adding grid position
+        self.grid_x = channel % 10
+        self.grid_y =  channel // 10
+
+        # edge positions (designating "outside of cell")
+        self.is_outside_cell = (self.grid_x == 0 or self.grid_x == 9 or self.grid_y == 0 or self.grid_y == 9)
+
         # Flat constants for this component/regulator
         self.constants = constants.get(self.label, {})
         
@@ -487,6 +494,14 @@ class OntologyBuilderUnified:
 
         for key, rec in self.regulators.items():
             starts, ends = rec["starts"], rec["ends"]
+
+            any_outside = any(comp.is_outside_cell for comp in starts + ends) if (starts and ends) else False
+            if rec["type"] in ("inducer", "inhibitor") and any_outside:
+                rec["is_floating"] = True
+                print(f"🌍 EXTERNAL {rec['type'].upper()} DETECTED: {key}")
+                print(f"   Positions: starts={[(c.grid_x, c.grid_y) for c in starts]}, ends={[(c.grid_x, c.grid_y) for c in ends]}")
+    
+
             if not starts or not ends:
                 continue
 
@@ -522,18 +537,24 @@ class OntologyBuilderUnified:
                             continue
                         source_name = src_prev.label
                     else:
+                        # Floating: use regulator key as source (external/constant concentration)
                         source_name = key
+                        print(f"   Source: {source_name} (external - constant concentration from constants)")
 
                     # Choose regulation kind based on circuit context
-                    if rec["is_floating"] and start.circuit_name is None:
-                        # Floating regulator placed outside all circuits → induced/environmental regulation
+                    if rec["is_floating"]:
+                    # Floating regulator (external/constant concentration)
                         kind = type_map.get(rec["type"], "transcriptional_regulation")
+                        print(f"   Regulation kind: {kind} (floating/external)")
                     elif start.circuit_name != end.circuit_name:
-                        # Start and end span two different circuits → transcriptional activation/repression
+                    # Cross-circuit regulation
                         kind = type_map.get(rec["type"], "transcriptional_regulation")
+                        print(f"   Regulation kind: {kind} (cross-circuit)")
                     else:
-                        # Within same circuit → self activation/repression
+                    # Same-circuit regulation (self-regulation)
                         kind = self_map.get(rec["type"])
+                        print(f"   Regulation kind: {kind} (self-regulation)")
+
 
                     # Use consistent default parameters unless strength is specified
                     # Check if this is a "strong" or "weak" regulation based on component strength
@@ -585,8 +606,38 @@ class OntologyBuilderUnified:
                         "source": source_name,
                         "target": prom_prev.label,
                         "parameters": real_params,
-                        "affected_cdss": [] if rec["is_floating"] else affected
+                        "affected_cdss": affected,
+                        "is_outside_cell": any_outside if rec["type"] in ("inducer", "inhibitor") else False
+
                     })
+
+                     # ADD THIS AT THE VERY END
+                    print("\n" + "="*70)
+                    print("🔍 ALL REGULATIONS CREATED")
+                    print("="*70)
+                    for i, reg in enumerate(self.regulations):
+                        print(f"\nRegulation {i+1}:")
+                        print(f"  Type: {reg['type']}")
+                        print(f"  Source: {reg.get('source', 'N/A')}")
+                        print(f"  Target: {reg.get('target', 'N/A')}")
+                        print(f"  Affected CDSs: {reg.get('affected_cdss', [])}")
+                        print(f"  Is Outside Cell: {reg.get('is_outside_cell', False)}")
+        
+                        params = reg.get('parameters', {})
+                        if params.get('is_floating'):
+                            print(f"  🌍 EXTERNAL/FLOATING REGULATOR")
+                            print(f"     Concentration: {params.get('concentration', 'N/A')}")
+                            if 'Ka' in params:
+                                print(f"     Ka: {params.get('Ka')}, n: {params.get('n')}")
+                            if 'Kr' in params:
+                                print(f"     Kr: {params.get('Kr')}, n: {params.get('n')}")
+                        else:
+                            print(f"  🔗 PROTEIN-BASED REGULATOR")
+                            if 'Ka' in params:
+                                print(f"     Ka: {params.get('Ka')}, n: {params.get('n')}")
+                            if 'Kr' in params:
+                                print(f"     Kr: {params.get('Kr')}, n: {params.get('n')}")
+                    print("="*70 + "\n")
 
     def _add_constitutive_regulations(self):
         """Add constitutive regulations for unregulated CDSs"""
@@ -620,6 +671,7 @@ class OntologyBuilderUnified:
                             },
                             "affected_cdss": [name]
                         })
+
 
     def _detect_extras_outside(self):
         """Detect components outside valid circuits"""
