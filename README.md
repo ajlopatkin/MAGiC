@@ -22,18 +22,18 @@ This is the MAGiC (Modular and Adaptive Genetic Information Circuit) web applica
    ```
 2. Install dependencies: `pip install -r requirements.txt`
 3. Run the application: `python main.py`
-4. Open your browser to http://localhost:5001
+4. Open your browser to http://127.0.0.1:8000
 
 ### Option 2: Using UV (Fast Package Manager)
 1. Install UV: `pip install uv`
 2. Install dependencies: `uv pip install -r requirements.txt`
 3. Run the application: `python main.py`
-4. Open your browser to http://localhost:5001
+4. Open your browser to http://127.0.0.1:8000
 
 ### Option 3: Direct Installation
 1. Install dependencies: `pip install -r requirements.txt`
 2. Run the application: `python main.py`
-3. Open your browser to http://localhost:5001
+3. Open your browser to http://127.0.0.1:8000
 
 **Port Configuration:**
 - Uses port 5001 by default to avoid conflicts with macOS AirPlay Receiver on port 5000
