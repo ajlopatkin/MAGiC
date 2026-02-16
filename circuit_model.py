@@ -13,15 +13,17 @@ import matplotlib.pyplot as plt
 class Component:
     """Light-weight representation for any parsed component line."""
     
-    def __init__(self, raw_label: str, channel: int, mux_chr: str, constants: Dict[str, Any], strength: str = 'norm'):
+    def __init__(self, raw_label: str, channel: int, mux_chr: str, constants: Dict[str, Any], strength: str = 'norm', comp_type: str = None, custom_name: str = None, gene_name: str = None):
         self.label = raw_label.strip()
-        self.type = self._infer_type(self.label)
+        self.type = comp_type if comp_type else self._infer_type(self.label)
         self.channel = channel
         self.mux_chr = mux_chr
         self.global_idx = (ord(mux_chr) - ord('A')) * 16 + channel
         self.id = f"{self.type}_{mux_chr}{channel}"
         self.strength = strength  # Store strength parameter
-        
+        self.custom_name = custom_name
+        self.gene_name = gene_name
+
         #adding grid position
         self.grid_x = channel % 10
         self.grid_y =  channel // 10
@@ -122,12 +124,18 @@ class Component:
         return "misc"
 
     def to_dict(self):
-        return {
+        d = {
             "id": self.id,
             "name": self.label,
             "type": self.type,
             "parameters": self.parameters
         }
+        if self.custom_name:
+            d["custom_name"] = self.custom_name
+        if self.gene_name:
+            d["gene_name"] = self.gene_name
+        return d
+
 
 class OntologyBuilderUnified:
     """Enhanced ontology builder from Version 15.3 with comprehensive circuit analysis"""
@@ -168,7 +176,18 @@ class OntologyBuilderUnified:
             # Extract strength from strength=value
             m = re.search(r"strength=(\w+)", raw)
             return m.group(1) if m else 'norm'
-        
+        def extract_type(raw: str):
+            m = re.search(r"type=(\w+)", raw)
+            return m.group(1) if m else None
+
+        def extract_custom_name(raw: str):
+            m = re.search(r"customName=(.+?)(?:\s+\w+=|$)", raw)
+            return m.group(1).strip() if m else None
+
+        def extract_gene_name(raw: str):
+            m = re.search(r"geneName=(.+?)(?:\s+\w+=|$)", raw)
+            return m.group(1).strip() if m else None
+
         def extract_mux_channel(raw: str):
             # Extract MUX and Channel from "MUX A, Channel 0: ['component']"
             m = re.search(r"MUX\s+([A-Z]),\s+Channel\s+(\d+):", raw)
@@ -198,15 +217,19 @@ class OntologyBuilderUnified:
 
             # Extract strength info
             strength = extract_strength(raw)
+            
+            comp_type = extract_type(raw)
+            custom_name = extract_custom_name(raw)
+            gene_name = extract_gene_name(raw)
 
             # Extract MUX/Channel info for proper hardware indexing
             mux_letter, channel = extract_mux_channel(raw)
             if mux_letter and channel is not None:
-                comp = Component(lbl, channel, mux_letter, self.constants, strength)
+                comp = Component(lbl, channel, mux_letter, self.constants, strength, comp_type, custom_name, gene_name)
             else:
                 # Fallback for simple format without MUX/Channel
                 mux_counter = len([x for x in self.items if x is not None])
-                comp = Component(lbl, mux_counter % 16, chr(65 + mux_counter // 16), self.constants, strength)
+                comp = Component(lbl, channel, mux_letter, self.constants, strength, comp_type, custom_name, gene_name)
 
             # Break circuit on new promoter after seeing a CDS
             if in_circ and has_cds and comp.type == "promoter":
@@ -272,7 +295,13 @@ class OntologyBuilderUnified:
             return
 
         # Assign circuit name
-        name = f"circuit_{len(self.circuits) + 1}"
+        circuit_gene_name = None
+        for c in comps:
+            if c.gene_name:
+                circuit_gene_name = c.gene_name
+                break
+        name = circuit_gene_name if circuit_gene_name else f"circuit_{len(self.circuits) + 1}"
+        
         for c in comps:
             c.circuit_name = name
             self.comp_to_circuit[c.id] = name
@@ -771,22 +800,29 @@ def simulate_circuit(builder: OntologyBuilderUnified) -> Dict[str, Any]:
                 if comp["type"] != "cds": 
                     continue
                 cds_id = comp["id"]
-                # Extract letter from name (cds_1 -> A, cds_2 -> B, etc.)
                 name = comp["name"]
-                if "cds" in name:
-                    # Handle both formats: cds_2 and cds2
+                comp_obj = next((item for item in builder.items 
+                    if isinstance(item, Component)
+                    and item.label == name and item.type == "cds"),
+                    None
+                )
+                has_custom = comp_obj and comp_obj.custom_name
+                has_gene = comp_obj and comp_obj.gene_name
+
+                is_standard_name = "cds" in name.lower() and not has_custom
+
+                if is_standard_name:
                     if "_" in name:
-                        gene_part = name.split("_")[-1]  # Get last part after underscore
+                        gene_part = name.split("_")[-1]
                     else:
-                        gene_part = name.replace("cds", "")  # Remove cds prefix
-                    
+                        gene_part = name.replace("cds", "")
+
                     try:
-                        # Convert gene letter/number to display letter
                         if gene_part.isdigit():
-                            letter = chr(65 + int(gene_part) - 1)  # 1->A, 2->B, etc.
+                            letter = chr(65 + int(gene_part) - 1)
                             gene_num = int(gene_part)
                         elif gene_part.isalpha():
-                            letter = gene_part.upper()  # a->A, b->B, etc.
+                            letter = gene_part.upper()
                             gene_num = ord(gene_part.upper()) - ord('A') + 1
                         else:
                             letter = "A"
@@ -794,24 +830,28 @@ def simulate_circuit(builder: OntologyBuilderUnified) -> Dict[str, Any]:
                     except (ValueError, IndexError):
                         letter = "A"
                         gene_num = 1
+
+                    if gene_num not in gene_cds_counters:
+                        gene_cds_counters[gene_num] = 0
+                    gene_cds_counters[gene_num] += 1
+                    sequence_num = gene_cds_counters[gene_num]
+
+                    gene_label = comp_obj.gene_name if has_gene else f"Gene Circuit {gene_num}"
+
+                    if gene_cds_count.get(gene_num, 1) > 1:
+                        display_name = f"Protein {letter}.{sequence_num}, {gene_label}"
+                    else:
+                        display_name = f"Protein {letter}, {gene_label}"
+                elif has_custom:
+                    gene_label = comp_obj.gene_name if has_gene else None
+                    if gene_label:
+                        display_name = f"{comp_obj.custom_name}, {gene_label}"
+                    else:
+                        display_name = comp_obj.custom_name
                 else:
-                    letter = "A"
-                    gene_num = 1
+                    display_name = name
                 
-                # Track sequence number for this gene
-                if gene_num not in gene_cds_counters:
-                    gene_cds_counters[gene_num] = 0
-                gene_cds_counters[gene_num] += 1
-                sequence_num = gene_cds_counters[gene_num]
-                
-                # Create unique display name for each CDS, even if redundant
-                if gene_cds_count.get(gene_num, 1) > 1:
-                    # Multiple CDS in same gene - differentiate by sequence
-                    display_name = f"Protein {letter}.{sequence_num}, Gene Circuit {gene_num}"
-                else:
-                    # Single CDS in gene
-                    display_name = f"Protein {letter}, Gene Circuit {gene_num}"
-                
+
                 cds_list.append(cds_id)
                 display_names.append(display_name)
                 id2comp[cds_id] = comp

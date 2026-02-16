@@ -1,5 +1,23 @@
 // Simplified Genetic Circuit Designer JavaScript without Gene Tabs System
 
+// ===== DISPLAY HELPERS =====
+function formatComponentName(name) {
+    if (!name) return null;
+    const uppercaseTypes = ['rbs', 'cds'];
+    function capitalize(parts) {
+        return parts.map(p => uppercaseTypes.includes(p.toLowerCase()) ? p.toUpperCase() : p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+    }
+    const match = name.match(/^(.+)_(\d+)$/);
+    if (match) {
+        return `${capitalize(match[1].split('_'))} ${match[2]}`;
+    }
+    const parts = name.split('_');
+    if (parts.length >= 1 && parts.every(p => /^[a-z]+$/i.test(p))) {
+        return capitalize(parts);
+    }
+    return name;
+}
+
 // ===== REGULATOR TYPES CONSTANT =====
 const REGULATOR_TYPES = ['Repressor Start', 'Repressor End', 'Activator Start', 'Activator End', 
                         'Inducer Start', 'Inducer End', 'Inhibitor Start', 'Inhibitor End'];
@@ -192,6 +210,7 @@ function setupCells() {
                     y: y,
                     id: `${baseType}_${x}_${y}_${Date.now()}`,
                     customName: null,
+                    geneName: null,
                     parameters: {}
                 };
                 
@@ -208,7 +227,10 @@ function setupCells() {
                 
                 // Update visual and register with connector system
                 updateCellDisplay(x, y, component.type, component.number, component.customName, component);
-                
+                                
+                // Open parameter modal immediately after placement for naming
+                showComponentParameterModal(x, y, component.type, component.number, component);
+
                 // Register component with connector system if it's a regulator
                 if (REGULATOR_TYPES.includes(component.type)) {
                     console.log(`Component is a regulator type: ${component.type}`);
@@ -1004,6 +1026,37 @@ function addPortsToCell(cell, componentType) {
         nameGroup.appendChild(nameInput);
         body.appendChild(nameGroup);
         
+
+        // Add Gene/Circuit Name field
+        const geneGroup = document.createElement('div');
+        geneGroup.className = 'parameter-group name-group';
+
+        const geneLabel = document.createElement('label');
+        geneLabel.textContent = 'Gene / Circuit Name:';
+        geneLabel.setAttribute('for', 'gene-name-input');
+
+        const geneHint = document.createElement('small');
+        geneHint.style.cssText = 'display:block; color:#9ca3af; font-size:0.85em; margin-bottom:4px; font-weight:normal;';
+        geneHint.textContent = 'Optional: Name the gene circuit this component belongs to (shown in plots & analysis)';
+        geneLabel.appendChild(geneHint);
+
+        const geneInput = document.createElement('input');
+        geneInput.type = 'text';
+        geneInput.id = 'gene-name-input';
+        geneInput.placeholder = `Gene Circuit ${componentNumber}`;
+        geneInput.value = component?.geneName || '';
+
+        geneInput.addEventListener('input', function() {
+            if (component) {
+                component.geneName = this.value.trim() || null;
+                console.log(`Set gene/circuit name to: ${this.value.trim()}`);
+            }
+        });
+
+        geneGroup.appendChild(geneLabel);
+        geneGroup.appendChild(geneInput);
+        body.appendChild(geneGroup);
+        
         // Add separator
         const separator = document.createElement('div');
         separator.className = 'parameter-separator';
@@ -1556,7 +1609,7 @@ function addPortsToCell(cell, componentType) {
             result.circuits.forEach((circuit, index) => {
                 circuitDetailsHTML += `
                     <div class="circuit-detail-item">
-                        <h4>Circuit ${index + 1}: ${circuit.name}</h4>
+                        <h4>${circuit.name.startsWith('circuit_') ? `Circuit ${index + 1}` : circuit.name}</h4>
                         <div class="component-breakdown">
                             <strong>Components:</strong>
                             <ul>
@@ -1582,8 +1635,10 @@ function addPortsToCell(cell, componentType) {
                         }
                         
                         // Show user-friendly name
-                        const displayName = comp.custom_name || comp.name || `${comp.type} #${circuit.components.filter(c => c.type === comp.type).indexOf(comp) + 1}`;
-                        circuitDetailsHTML += `<li>${displayName}${positionInfo}</li>`;
+                        const displayName = comp.custom_name || formatComponentName(comp.name) || `${comp.type} #${circuit.components.filter(c => c.type === comp.type).indexOf(comp) + 1}`;
+                        const geneTag = comp.gene_name ? ` <small style="color:#9ca3af;">[${comp.gene_name}]</small>` : '';
+                        circuitDetailsHTML += `<li>${displayName}${geneTag}${positionInfo}</li>`;
+
                     });
                 } else {
                     circuitDetailsHTML += '<li>No components found</li>';
@@ -1595,7 +1650,7 @@ function addPortsToCell(cell, componentType) {
                 if (circuit.component_counts) {
                     circuitDetailsHTML += '<div class="counts"><strong>Counts:</strong> ';
                     Object.entries(circuit.component_counts).forEach(([type, count]) => {
-                        circuitDetailsHTML += `${type}: ${count}, `;
+                        circuitDetailsHTML += `${formatComponentName(type)}: ${count}, `;
                     });
                     circuitDetailsHTML = circuitDetailsHTML.slice(0, -2) + '</div>';
                     
@@ -1744,8 +1799,10 @@ function addPortsToCell(cell, componentType) {
             
             result.regulations.forEach((regulation, index) => {
                 // Better display for constitutive regulations
-                const source = regulation.source || 'Constitutive';
-                const target = regulation.target || 'Unknown';
+                
+                const source = formatComponentName(regulation.source) || 'Constitutive';
+                const target = formatComponentName(regulation.target) || 'Unknown';
+
                 const type = regulation.type || 'constitutive';
                 
                 let explanation = '';

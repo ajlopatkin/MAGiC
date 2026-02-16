@@ -30,6 +30,10 @@ def generate_equation_display(builder, result):
     
     # Create reverse mapping: CDS name -> Protein display name
     cds_to_protein = {cds_name: protein_name for protein_name, cds_name in protein_mapping.items()}
+
+    def _latex_short_name(display_name):
+        parts = display_name.split(',', 1)
+        return parts[0].strip()
     
     for protein_name, cds_name in protein_mapping.items():
         equation_parts = []
@@ -58,12 +62,10 @@ def generate_equation_display(builder, result):
         # Check for constitutive regulation
         constitutive_regs = [reg for reg in regulations if reg.get('type') == 'constitutive' and reg.get('target') == controlling_promoter]
         
+        latex_name = _latex_short_name(protein_name)
+
         if not affecting_regs or (len(affecting_regs) == 1 and affecting_regs[0].get('type') == 'constitutive'):
             # Constitutive expression - use simplified protein name
-            simple_protein_name = protein_name.split(',')[0]  # "Protein A.1, Gene 1" -> "Protein A.1"
-            # Further simplify for LaTeX: "Protein A.1" -> "Protein A" (remove gene info)
-            latex_name = simple_protein_name.replace(', Gene', '').strip()
-            
             equations[protein_name] = {
                 'latex': f"\\frac{{d[{latex_name}]}}{{dt}} = k_{{prod}} - \\gamma \\cdot [{latex_name}]",
                 'description': "Constitutive protein production with degradation",
@@ -73,9 +75,6 @@ def generate_equation_display(builder, result):
             # Build regulation-based equation
             reg_descriptions = []
             latex_terms = []
-            simple_protein_name = protein_name.split(',')[0]  # "Protein A.1, Gene 1" -> "Protein A.1"
-            # Further simplify for LaTeX: remove gene info
-            latex_name = simple_protein_name.replace(', Gene', '').strip()
             
             for reg in affecting_regs:
                 reg_type = reg['type']
@@ -86,28 +85,26 @@ def generate_equation_display(builder, result):
                     # Get hill coefficient (n) from parameters
                     n = params.get('n', 2)  # Default to 2 if not specified
                     if 'self' in reg_type:
-                        reg_descriptions.append(f"Self-repression by {simple_protein_name} (n={n})")
+                        reg_descriptions.append(f"Self-repression by {latex_name} (n={n})")
                         latex_terms.append(f"\\frac{{1}}{{1 + \\left(\\frac{{[{latex_name}]}}{{K_r}}\\right)^{n}}}")
                     else:
                         # Convert source CDS name to protein display name
                         source_protein = cds_to_protein.get(source, source)
-                        simple_source_name = source_protein.split(',')[0] if ',' in source_protein else source_protein
-                        latex_source_name = simple_source_name.replace(', Gene', '').strip()
-                        reg_descriptions.append(f"Repression by {simple_source_name} (n={n})")
+                        latex_source_name = _latex_short_name(source_protein)
+                        reg_descriptions.append(f"Repression by {latex_source_name} (n={n})")
                         latex_terms.append(f"\\frac{{1}}{{1 + \\left(\\frac{{[{latex_source_name}]}}{{K_r}}\\right)^{n}}}")
                         
                 elif 'activation' in reg_type:
                     # Get hill coefficient (n) from parameters
                     n = params.get('n', 2)  # Default to 2 if not specified
                     if 'self' in reg_type:
-                        reg_descriptions.append(f"Self-activation by {simple_protein_name} (n={n})")
+                        reg_descriptions.append(f"Self-activation by {latex_name} (n={n})")
                         latex_terms.append(f"\\frac{{[{latex_name}]^{n}}}{{K_a^{n} + [{latex_name}]^{n}}}")
                     else:
                         # Convert source CDS name to protein display name
                         source_protein = cds_to_protein.get(source, source)
-                        simple_source_name = source_protein.split(',')[0] if ',' in source_protein else source_protein
-                        latex_source_name = simple_source_name.replace(', Gene', '').strip()
-                        reg_descriptions.append(f"Activation by {simple_source_name} (n={n})")
+                        latex_source_name = _latex_short_name(source_protein)
+                        reg_descriptions.append(f"Activation by {latex_source_name} (n={n})")
                         latex_terms.append(f"\\frac{{[{latex_source_name}]^{n}}}{{K_a^{n} + [{latex_source_name}]^{n}}}")
             
             # Combine terms
@@ -234,13 +231,19 @@ def simulate():
                 
                 base_type = type_map.get(component_type, component_type.lower().replace(' ', '_'))
                 
-                # Auto-increment component number based on type
                 if base_type not in component_counts:
-                    component_counts[base_type] = 1
-                else:
-                    component_counts[base_type] += 1
+                    component_counts[base_type] = 0
+                component_counts[base_type] += 1
+                
+                # Always use the canonical type-based label for internal tracking
+                # Custom name is stored separately and used only for display
                 
                 comp_name = f"{base_type}_{component_counts[base_type]}"
+                # Capture gene/circuit name if provided
+                
+                gene_name = None
+                if 'geneName' in comp and comp['geneName'] and comp['geneName'].strip():
+                    gene_name = comp['geneName'].strip()
                 
                 placed_components.append({
                     'channel': channel,
@@ -249,7 +252,10 @@ def simulate():
                     'type': component_type,
                     'strength': strength,
                     'position': channel,  # For sorting
-                    'comp_number': component_counts[base_type]  # Store the number for dial interface
+                    'comp_number': component_counts[base_type],  # Store the number for dial interface
+                    'base_type': base_type,
+                    'customName': comp.get('customName', '').strip() if comp.get('customName') else None,
+                    'geneName': gene_name
                 })
         
         # Sort by position to create ordered circuit
@@ -266,7 +272,12 @@ def simulate():
                 final_lines.append("")  # Circuit break
             
             # Create MUX/Channel line in exact hardware format with strength info
-            mux_line = f"MUX {comp['mux']}, Channel {comp['channel']}:  ['{comp['name']}'] strength={comp['strength']}"
+            internal_type = comp.get('base_type', 'misc')
+            mux_line = f"MUX {comp['mux']}, Channel {comp['channel']}:  ['{comp['name']}'] strength={comp['strength']} type={internal_type}"
+            if comp.get('customName'):
+                mux_line += f" customName={comp['customName']}"
+            if comp.get('geneName'):
+                mux_line += f" geneName={comp['geneName']}"
             final_lines.append(mux_line)
             last_pos = pos
         
