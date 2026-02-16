@@ -1,6 +1,24 @@
 // static/js/eeprom.js
 // EEPROM Hardware Integration for Genetic Circuit Designer
 
+// ===== DISPLAY HELPERS =====
+function formatComponentName(name) {
+    if (!name) return null;
+    const uppercaseTypes = ['rbs', 'cds'];
+    function capitalize(parts) {
+        return parts.map(p => uppercaseTypes.includes(p.toLowerCase()) ? p.toUpperCase() : p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+    }
+    const match = name.match(/^(.+)_(\d+)$/);
+    if (match) {
+        return `${capitalize(match[1].split('_'))} ${match[2]}`;
+    }
+    const parts = name.split('_');
+    if (parts.length >= 1 && parts.every(p => /^[a-z]+$/i.test(p))) {
+        return capitalize(parts);
+    }
+    return name;
+}
+
 // ===== COMPONENT SELECTION CONSTANTS =====
 const REGULATOR_TYPES = ['Repressor Start', 'Repressor End', 'Activator Start', 'Activator End', 
                         'Inducer Start', 'Inducer End', 'Inhibitor Start', 'Inhibitor End'];
@@ -3284,7 +3302,7 @@ async function runSimulationFromCellboard(cellboard) {
                     let componentsHTML = '<ul class="mb-2">';
                     if (circuit.components && circuit.components.length > 0) {
                         circuit.components.forEach(comp => {
-                            const displayName = comp.custom_name || comp.name || comp.type;
+                            const displayName = comp.custom_name || formatComponentName(comp.name) || comp.type;
                             componentsHTML += `<li>${displayName}</li>`;
                         });
                     } else {
@@ -3296,13 +3314,13 @@ async function runSimulationFromCellboard(cellboard) {
                     if (circuit.component_counts) {
                         countsHTML = '<p class="mb-1"><strong>Component Counts:</strong> ';
                         Object.entries(circuit.component_counts).forEach(([type, count]) => {
-                            countsHTML += `${type}: ${count}, `;
+                            countsHTML += `${formatComponentName(type)}: ${count}, `;
                         });
                         countsHTML = countsHTML.slice(0, -2) + '</p>';
                     }
                     
                     circuitDiv.innerHTML = `
-                        <h6 class="text-primary mb-2"><i class="fas fa-circuit-board me-2"></i>Circuit ${index + 1}: ${circuit.name || 'Unnamed'}</h6>
+                        <h6 class="text-primary mb-2"><i class="fas fa-circuit-board me-2"></i>${circuit.name && !circuit.name.startsWith('circuit_') ? circuit.name : `Circuit ${index + 1}`}</h6>
                         ${componentsHTML}
                         ${countsHTML}
                     `;
@@ -4096,8 +4114,8 @@ async function runSimulationFromPlacedComponents() {
             const cell = el.parentElement;
             const x = parseInt(cell.dataset.x);
             const y = parseInt(cell.dataset.y);
-            const componentType = el.dataset.component || el.textContent.split(' ')[0] || 'Unknown';
-            
+            const componentType = el.dataset.componentType || el.dataset.component || el.textContent.split(' ')[0] || 'Unknown';
+
             if (!cellboard[componentType]) {
                 cellboard[componentType] = [];
             }
@@ -4135,14 +4153,23 @@ async function runSimulationFromPlacedComponents() {
                 number: componentCounts[baseType]
             };
             
-            // Include parameters if they exist
-            if (existingComponent && existingComponent.parameters) {
-                componentData.parameters = existingComponent.parameters;
-                console.log(`Component ${i+1}: ${componentType} at (${x}, ${y}) - HAS PARAMETERS:`, existingComponent.parameters);
-            } else {
-                console.log(`Component ${i+1}: ${componentType} at (${x}, ${y}) - no parameters`);
-            }
             
+            // Include parameters, customName, and geneName if they exist
+            if (existingComponent) {
+                if (existingComponent.parameters) {
+                    componentData.parameters = existingComponent.parameters;
+                }
+                if (existingComponent.customName) {
+                    componentData.customName = existingComponent.customName;
+                }
+                if (existingComponent.geneName) {
+                    componentData.geneName = existingComponent.geneName;
+                }
+                console.log(`Component ${i+1}: ${componentType} at (${x}, ${y}) - customName: ${existingComponent.customName || 'none'}, geneName: ${existingComponent.geneName || 'none'}, params:`, existingComponent.parameters || {});
+            } else {
+                console.log(`Component ${i+1}: ${componentType} at (${x}, ${y}) - no existing data found`);
+            }
+
             cellboard[componentType].push(componentData);
         });
         
@@ -4324,7 +4351,7 @@ async function runSimulationFromPlacedComponents() {
                     result.circuits.forEach((circuit, index) => {
                         circuitDetailsHTML += `
                             <div class="circuit-detail-item">
-                                <h4>Circuit ${index + 1}: ${circuit.name}</h4>
+                                <h4>${circuit.name && !circuit.name.startsWith('circuit_') ? circuit.name : `Circuit ${index + 1}`}</h4>
                                 <div class="component-breakdown">
                                     <strong>Components:</strong>
                                     <ul>
@@ -4332,7 +4359,7 @@ async function runSimulationFromPlacedComponents() {
                         
                         if (circuit.components) {
                             circuit.components.forEach(comp => {
-                                const displayName = comp.custom_name || comp.name || `${comp.type}`;
+                                const displayName = comp.custom_name || formatComponentName(comp.name) || `${comp.type}`;
                                 circuitDetailsHTML += `<li>${displayName}</li>`;
                             });
                         } else {
@@ -4345,7 +4372,7 @@ async function runSimulationFromPlacedComponents() {
                         if (circuit.component_counts) {
                             circuitDetailsHTML += '<div class="counts"><strong>Counts:</strong> ';
                             Object.entries(circuit.component_counts).forEach(([type, count]) => {
-                                circuitDetailsHTML += `${type}: ${count}, `;
+                                circuitDetailsHTML += `${formatComponentName(type)}: ${count}, `;
                             });
                             circuitDetailsHTML = circuitDetailsHTML.slice(0, -2) + '</div>';
                             
@@ -4510,8 +4537,8 @@ async function runSimulationFromPlacedComponents() {
                     `;
                     
                     result.regulations.forEach((regulation, index) => {
-                        const source = regulation.source || 'Constitutive';
-                        const target = regulation.target || 'Unknown';
+                        const source = formatComponentName(regulation.source) || 'Constitutive';
+                        const target = formatComponentName(regulation.target) || 'Unknown';
                         const type = regulation.type || 'constitutive';
                         const params = regulation.parameters || {};
                         const isFloating = params.is_floating || false;
@@ -4612,8 +4639,8 @@ async function runSimulationFromPlacedComponents() {
                         paramsHTML += `
                             <div class="parameter-item">
                                 <h4>
-                                    <i class="fas fa-cube me-2"></i>${comp.name} 
-                                    <span class="badge">${comp.type}</span>
+                                    <i class="fas fa-cube me-2"></i>${comp.custom_name || formatComponentName(comp.name)} 
+                                    <span class="badge">${formatComponentName(comp.type)}</span>
                                 </h4>
                         `;
                         
