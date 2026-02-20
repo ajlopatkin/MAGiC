@@ -658,18 +658,18 @@ def simulate():
 def get_components():
     """Get available components and their properties"""
     components = {
-        'Promoter': {'color': '#FF6B6B'},
-        'Terminator': {'color': '#4ECDC4'},
-        'RBS': {'color': '#FFD166'},
-        'CDS': {'color': '#06D6A0'},
-        'Repressor Start': {'color': '#A78BFA'},
-        'Repressor End': {'color': '#7E22CE'},
-        'Activator Start': {'color': '#3B82F6'},
-        'Activator End': {'color': '#1E40AF'},
-        'Inducer Start': {'color': '#14B8A6'},
-        'Inducer End': {'color': '#0D9488'},
-        'Inhibitor Start': {'color': '#F97316'},
-        'Inhibitor End': {'color': '#EA580C'}
+        'Promoter': {'color': '#ff859c'},
+        'Terminator': {'color': 'rgb(225, 218, 3)'},
+        'RBS': {'color': '#f39c12'},
+        'CDS': {'color': '#3C5EB4'},
+        'Repressor Start': {'color': '#e12929'},
+        'Repressor End': {'color': '#e12929'},
+        'Activator Start': {'color': '#6ccd7e'},
+        'Activator End': {'color': '#6ccd7e'},
+        'Inducer Start': {'color': '#0e7b39'},
+        'Inducer End': {'color': '#0e7b39'},
+        'Inhibitor Start': {'color': '#920702'},
+        'Inhibitor End': {'color': '#920702'}
     }
     return jsonify(components)
 

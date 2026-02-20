@@ -180,18 +180,19 @@ header.text-center:not(.page-header) .lead {
 }
 
 /* Component Colors for Gene Panel */
-.component[data-component="Promoter"] { background: #de7689; }
+.component[data-component="Promoter"] { background: #ff859c; }
 .component[data-component="Terminator"] { background: rgb(225, 218, 3); }
-.component[data-component="RBS"] { background: #CF9E53; }
+.component[data-component="RBS"] { background: #f39c12; }
 .component[data-component="CDS"] { background: #3C5EB4; }
-.component[data-component="Repressor Start"] { background: #920702; }
-.component[data-component="Repressor End"] { background: #920702; }
-.component[data-component="Activator Start"] { background: #6DB079; }
-.component[data-component="Activator End"] { background: #6DB079; }
-.component[data-component="Inducer Start"] { background: #FF69B4; }
-.component[data-component="Inducer End"] { background: #FF69B4; }
-.component[data-component="Inhibitor Start"] { background: #95a5a6; }
-.component[data-component="Inhibitor End"] { background: #7f8c8d; }
+.component[data-component="Repressor Start"] { background: #e12929; }
+.component[data-component="Repressor End"] { background: #e12929; }
+.component[data-component="Activator Start"] { background: #6ccd7e; }
+.component[data-component="Activator End"] { background: #6ccd7e; }
+.component[data-component="Inducer Start"] { background: #0e7b39; }
+.component[data-component="Inducer End"] { background: #0e7b39; }
+.component[data-component="Inhibitor Start"] { background: #920702; }
+.component[data-component="Inhibitor End"] { background: #920702; }
+
 
 /* Component selection feedback */
 .component.selected {
@@ -1488,15 +1489,18 @@ header.text-center:not(.page-header) .lead {
 }
 
 /* Component Colors */
-.component[data-component="Promoter"] { background: #de7689; }
+.component[data-component="Promoter"] { background: #ff859c; }
 .component[data-component="Terminator"] { background: rgb(225, 218, 3); }
-.component[data-component="RBS"] { background: #CF9E53; }
+.component[data-component="RBS"] { background: #f39c12; }
 .component[data-component="CDS"] { background: #3C5EB4; }
-.component[data-component="Repressor Start"] { background: #920702; }
-.component[data-component="Repressor End"] { background: #920702; }
-.component[data-component="Activator Start"] { background: #6DB079; }
-.component[data-component="Activator End"] { background: #6DB079; }
-.component[data-component="Inducer"] { background: #FF69B4; }
+.component[data-component="Repressor Start"] { background: #e12929; }
+.component[data-component="Repressor End"] { background: #e12929; }
+.component[data-component="Activator Start"] { background: #6ccd7e; }
+.component[data-component="Activator End"] { background: #6ccd7e; }
+.component[data-component="Inducer Start"] { background: #0e7b39; }
+.component[data-component="Inducer End"] { background: #0e7b39; }
+.component[data-component="Inhibitor Start"] { background: #920702; }
+.component[data-component="Inhibitor End"] { background: #920702; }
 
 .main-content .component .strength-menu {
     display: visible;
@@ -2141,18 +2145,18 @@ header.text-center:not(.page-header) .lead {
 }
 
 /* Component-specific colors */
-.component-promoter { background-color: #e74c3c; }
+.component-promoter { background-color: #ff859c; }
 .component-rbs { background-color: #f39c12; }
-.component-cds { background-color: #2ecc71; }
-.component-terminator { background-color: #9b59b6; }
-.component-repressor-start { background-color: #e67e22; }
-.component-repressor-end { background-color: #d35400; }
-.component-activator-start { background-color: #3498db; }
-.component-activator-end { background-color: #2980b9; }
-.component-inducer-start { background-color: #1abc9c; }
-.component-inducer-end { background-color: #16a085; }
-.component-inhibitor-start { background-color: #95a5a6; }
-.component-inhibitor-end { background-color: #7f8c8d; }
+.component-cds { background-color: #3C5EB4; }
+.component-terminator { background-color: rgb(225, 218, 3); }
+.component-repressor-start { background-color: #e12929; }
+.component-repressor-end { background-color: #e12929; }
+.component-activator-start { background-color: #6ccd7e; }
+.component-activator-end { background-color: #6ccd7e; }
+.component-inducer-start { background-color: #0e7b39; }
+.component-inducer-end { background-color: #0e7b39; }
+.component-inhibitor-start { background-color: #920702; }
+.component-inhibitor-end { background-color: #920702; }
 
 /* Enhanced component styling for clickable components */
 .placed-component.has-parameters {
