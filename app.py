@@ -921,7 +921,7 @@ def parse_hardware_log(log_lines):
         line = line.strip()
         
         # Look for MUX selection commands
-        cmd_match = re.search(r'>\s*sm\s+([ab])\s+(\d+)', line, re.IGNORECASE)
+        cmd_match = re.search(r'>\s*sm\s+([a-g])\s+(\d+)', line, re.IGNORECASE)
         if cmd_match:
             mux_letter = cmd_match.group(1).upper()
             channel_num = int(cmd_match.group(2))
@@ -999,11 +999,11 @@ def parse_hardware_log(log_lines):
                     (r'(inducer_[a-z]_end)', 'inducer_end'),
                     (r'(inhibitor_[a-z]_start)', 'inhibitor_start'),
                     (r'(inhibitor_[a-z]_end)', 'inhibitor_end'),
-                    (r'(promotor_[a-f])', 'promoter'),  # Normalize promotor to promoter
-                    (r'(promoter_[a-f])', 'promoter'),
-                    (r'(terminator_[a-f])', 'terminator'),
-                    (r'(rbs_[a-h])', 'rbs'),
-                    (r'(cds_[a-h])', 'cds')
+                    (r'(promotor_[a-z])', 'promoter'),  # Normalize promotor to promoter
+                    (r'(promoter_[a-z])', 'promoter'),
+                    (r'(terminator_[a-z])', 'terminator'),
+                    (r'(rbs_[a-z])', 'rbs'),
+                    (r'(cds_[a-z])', 'cds')
                 ]
                 
                 for pattern, comp_type in patterns:
@@ -1075,7 +1075,7 @@ def convert_hardware_to_cellboard(channel_data):
     
     for channel_key, components in channel_data.items():
         # Parse channel position
-        match = re.search(r'MUX_([AB])_CH_(\d+)', channel_key)
+        match = re.search(r'MUX_([A-G])_CH_(\d+)', channel_key)
         if not match:
             continue
             
@@ -1083,9 +1083,22 @@ def convert_hardware_to_cellboard(channel_data):
         channel_num = int(match.group(2))
         
         # Map to board position
-        linear_pos = channel_num if mux_letter == 'A' else channel_num + 16
-        x = linear_pos % 8
-        y = linear_pos // 8
+        # MUX A: 0-15, MUX B: 16-31, MUX C: 32-47, MUX D: 48-63, 
+        # MUX E: 64-79, MUX F: 80-95, MUX G: 96-111
+        mux_offset = {
+                    'A': 0,
+                    'B': 16,
+                    'C': 32,
+                    'D': 48,
+                    'E': 64,
+                    'F': 80,
+                    'G': 96
+                }                    
+
+        # Calculate linear position using offset
+        linear_pos = mux_offset[mux_letter] + channel_num
+        x = linear_pos % 10
+        y = linear_pos // 10
         
         for comp_name in components:
             # Handle different component name patterns
