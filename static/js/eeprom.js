@@ -246,6 +246,13 @@ function clearBoard() {
     console.log('=== CLEAR BOARD CALLED ===');
     
     if (confirm('Are you sure you want to clear the design board? This will remove all placed components.')) {
+        
+        // Clear connectors 
+        if (typeof ConnectorManagerEEPROM !== 'undefined') {
+            ConnectorManagerEEPROM.clearAll();
+            console.log('Connector system cleared');
+        }
+
         // Clear all placed components from the visual board
         const placedComponents = document.querySelectorAll('.placed-component');
         placedComponents.forEach(component => {
