@@ -246,7 +246,7 @@ function clearBoard() {
     console.log('=== CLEAR BOARD CALLED ===');
     
     if (confirm('Are you sure you want to clear the design board? This will remove all placed components.')) {
-        
+
         // Clear connectors 
         if (typeof ConnectorManagerEEPROM !== 'undefined') {
             ConnectorManagerEEPROM.clearAll();
@@ -2475,9 +2475,6 @@ async function sendCommand(command) {
         // Use the tracked writer instead of creating new ones
         await writer.write(command + "\r\n");
         
-        // Small delay to ensure command is fully transmitted
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
         logLine(`> ${command}`);
         return true;
     } catch (err) {
@@ -2678,7 +2675,7 @@ async function readBoardConfiguration() {
                 if (!(await sendCommand(selectCmd))) {
                     continue;
                 }
-                await waitForPrompt(2000);
+                await waitForPrompt(100);
                 
                 // Check if MUX selection failed
                 const recentLog = LOG_LINES.slice(-3).join(' ').toLowerCase();
@@ -2691,29 +2688,20 @@ async function readBoardConfiguration() {
                 logLine('Reading EEPROM data into buffer...');
                 await sendCommand('er 0 64');  // Read 64 bytes from address 0
                 
-                // Wait specifically for EEPROM read completion (V7 TIMING!)
-                await waitForEEPROMReadComplete(6000);
-                
-                // Additional delay to ensure data is fully buffered
-                await new Promise(resolve => setTimeout(resolve, 300));
-                
                 // Then hex dump the buffer - FIRST attempt (often fails like August)
                 const hexLinesBefore = LOG_LINES.filter(line => line.match(/^\s*[0-9A-Fa-f]{2,4}:\s+(?:[0-9A-Fa-f]{2}\s+){8,}/)).length;
                 await sendCommand('hd 0 16');  // Hex dump starting from address 0
-                await waitForHexDumpComplete(6000);
+                await waitForHexDumpComplete(100);
                 
                 // Only retry if no hex data was captured from first attempt
                 const hexLinesAfter = LOG_LINES.filter(line => line.match(/^\s*[0-9A-Fa-f]{2,4}:\s+(?:[0-9A-Fa-f]{2}\s+){8,}/)).length;
                 if (hexLinesAfter === hexLinesBefore) {
                     // No hex data from first attempt - try second attempt like August pattern
                     logLine('First attempt failed, retrying...');
-                    await new Promise(resolve => setTimeout(resolve, 300));
                     await sendCommand('hd 0 16');  // Use correct syntax with start address
-                    await waitForHexDumpComplete(6000);
+                    await waitForHexDumpComplete(100);
                 }
                 
-                // Wait for EEPROM to settle before next channel
-                await new Promise(resolve => setTimeout(resolve, 750));
             }
         }
         
