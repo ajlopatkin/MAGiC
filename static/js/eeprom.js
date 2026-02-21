@@ -2660,8 +2660,8 @@ async function readBoardConfiguration() {
         await initializeI2CBus();
         logLine('I2C bus initialized successfully - ready for fast EEPROM reads');
         
-        // Read all MUX channels (A and B, 0-15 each) - EXACTLY like August working version
-        const muxChannels = ['a', 'b'];
+        // Read all MUX channels (A - G, 0-15 each) - EXACTLY like August working version
+        const muxChannels = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
         const channelRange = Array.from({length: 16}, (_, i) => i);
         
         for (const mux of muxChannels) {
@@ -2934,7 +2934,7 @@ function parseLogAndPopulateBoard() {
     
     for (const line of LOG_LINES) {
         // Look for MUX selection commands
-        const cmdMatch = line.match(/>\s*sm\s+([ab])\s+(\d+)/i);
+        const cmdMatch = line.match(/>\s*sm\s+([a-g])\s+(\d+)/i);
         if (cmdMatch) {
             const muxLetter = cmdMatch[1].toUpperCase();
             const channelNum = parseInt(cmdMatch[2], 10);
@@ -3429,7 +3429,12 @@ async function diagnoseBoardEEPROMs() {
         // Test channels where your components should be located
         const testChannels = [
             {mux: 'a', channel: 0}, {mux: 'a', channel: 1}, {mux: 'a', channel: 2}, {mux: 'a', channel: 3},
-            {mux: 'b', channel: 0}, {mux: 'b', channel: 1}, {mux: 'b', channel: 2}, {mux: 'b', channel: 3}
+            {mux: 'b', channel: 0}, {mux: 'b', channel: 1}, {mux: 'b', channel: 2}, {mux: 'b', channel: 3},
+            {mux: 'c', channel: 0}, {mux: 'c', channel: 1}, {mux: 'c', channel: 2}, {mux: 'c', channel: 3},
+            {mux: 'd', channel: 0}, {mux: 'd', channel: 1}, {mux: 'd', channel: 2}, {mux: 'd', channel: 3},
+            {mux: 'e', channel: 0}, {mux: 'e', channel: 1}, {mux: 'e', channel: 2}, {mux: 'e', channel: 3},
+            {mux: 'f', channel: 0}, {mux: 'f', channel: 1}, {mux: 'f', channel: 2}, {mux: 'f', channel: 3},
+            {mux: 'g', channel: 0}, {mux: 'g', channel: 1}, {mux: 'g', channel: 2}, {mux: 'g', channel: 3}
         ];
         
         for (const {mux, channel} of testChannels) {
@@ -3489,17 +3494,28 @@ function populateBoardFromChannelData(channelData) {
         const components = channelData[channelKey];
         
         // Parse channel information
-        const channelMatch = channelKey.match(/MUX\s+([AB]),\s*Channel\s*(\d+)/);
+        const channelMatch = channelKey.match(/MUX\s+([A-G]),\s*Channel\s*(\d+)/);
         if (!channelMatch) continue;
         
         const muxLetter = channelMatch[1];
         const channelNum = parseInt(channelMatch[2], 10);
         
-        // Map to board position (8x8 grid)
-        // MUX A maps to channels 0-15, MUX B maps to channels 16-31
-        const linearPosition = (muxLetter === 'A' ? channelNum : channelNum + 16);
-        const row = Math.floor(linearPosition / 8);
-        const col = linearPosition % 8;
+        // Map to board position (10x10 grid)
+        // MUX A: 0-15, MUX B: 16-31, MUX C: 32-47, MUX D: 48-63, 
+        // MUX E: 64-79, MUX F: 80-95, MUX G: 96-111
+        const muxOffset = {
+                    'A': 0,
+                    'B': 16,
+                    'C': 32,
+                    'D': 48,
+                    'E': 64,
+                    'F': 80,
+                    'G': 96
+        };
+        // Calculate linear position (0-111)
+        const linearPosition = muxOffset[muxLetter] + channelNum;
+        const row = Math.floor(linearPosition / 10);
+        const col = linearPosition % 10;
         
         // Find the corresponding cell
         const cell = document.querySelector(`.cell[data-x="${col}"][data-y="${row}"]`);
