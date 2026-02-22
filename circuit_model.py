@@ -15,7 +15,15 @@ class Component:
     
     def __init__(self, raw_label: str, channel: int, mux_chr: str, constants: Dict[str, Any], strength: str = 'norm', comp_type: str = None, custom_name: str = None, gene_name: str = None):
         self.label = raw_label.strip()
-        self.type = comp_type if comp_type else self._infer_type(self.label)
+        if comp_type:
+            regulator_bases = ("activator", "repressor", "inducer", "inhibitor")
+            stripped = comp_type.replace("_start", "").replace("_end", "")
+            if stripped in regulator_bases:
+                self.type = stripped
+            else:
+                self.type = comp_type
+        else:
+            self.type = self._infer_type(self.label)
         self.channel = channel
         self.mux_chr = mux_chr
         self.global_idx = (ord(mux_chr) - ord('A')) * 16 + channel
@@ -747,17 +755,24 @@ def simulate_circuit(builder: OntologyBuilderUnified) -> Dict[str, Any]:
         # Gather CDS entries + display names using your logic
         cds_list = []
         display_names = []
+        
+        
         id2comp = {}
         id2circ = {}
         
+        circuit_number = 0
+        global_cds_index = 0
+
         for circ in cell["circuits"]:
+        
             # Skip circuits marked as non-modelable (if such marking exists)
             # Default to True if not specified
             if circ.get("modelable", True) is False:
                 continue
-                
+        
+            circuit_number += 1
             comps = circ["components"]
-            
+
             # Determine base promoter strength using your logic
             first_cds_idx = next((i for i, c in enumerate(comps) if c["type"] == "cds"), None)
             if first_cds_idx is not None:
@@ -779,22 +794,8 @@ def simulate_circuit(builder: OntologyBuilderUnified) -> Dict[str, Any]:
             circ["cds_to_rbs"] = cds_to_rbs
             
             # Count CDS components per gene to handle multiple CDS in same gene
-            gene_cds_count = {}
-            for comp in comps:
-                if comp["type"] == "cds":
-                    # Extract gene info from component ID (e.g., "cds_A3" -> gene from original placement)
-                    comp_id = comp["id"]
-                    # Find the gene number from the original component placement
-                    gene_num = 1  # default
-                    if hasattr(comp, 'gene_number'):
-                        gene_num = comp.gene_number
-                    elif 'gene' in comp.get('metadata', {}):
-                        gene_num = comp['metadata']['gene']
-                    
-                    gene_cds_count[gene_num] = gene_cds_count.get(gene_num, 0) + 1
             
-            # Track CDS sequence numbers within each gene
-            gene_cds_counters = {}
+            cds_index_in_circuit = 0
             
             for comp in comps:
                 if comp["type"] != "cds": 
@@ -809,49 +810,19 @@ def simulate_circuit(builder: OntologyBuilderUnified) -> Dict[str, Any]:
                 has_custom = comp_obj and comp_obj.custom_name
                 has_gene = comp_obj and comp_obj.gene_name
 
-                is_standard_name = "cds" in name.lower() and not has_custom
+                cds_number = name.split("_")[-1] if "_" in name else str(global_cds_index + 1)
+                gene_label = comp_obj.gene_name if has_gene else f"Gene Circuit {circuit_number}"
 
-                if is_standard_name:
-                    if "_" in name:
-                        gene_part = name.split("_")[-1]
-                    else:
-                        gene_part = name.replace("cds", "")
-
-                    try:
-                        if gene_part.isdigit():
-                            letter = chr(65 + int(gene_part) - 1)
-                            gene_num = int(gene_part)
-                        elif gene_part.isalpha():
-                            letter = gene_part.upper()
-                            gene_num = ord(gene_part.upper()) - ord('A') + 1
-                        else:
-                            letter = "A"
-                            gene_num = 1
-                    except (ValueError, IndexError):
-                        letter = "A"
-                        gene_num = 1
-
-                    if gene_num not in gene_cds_counters:
-                        gene_cds_counters[gene_num] = 0
-                    gene_cds_counters[gene_num] += 1
-                    sequence_num = gene_cds_counters[gene_num]
-
-                    gene_label = comp_obj.gene_name if has_gene else f"Gene Circuit {gene_num}"
-
-                    if gene_cds_count.get(gene_num, 1) > 1:
-                        display_name = f"Protein {letter}.{sequence_num}, {gene_label}"
-                    else:
-                        display_name = f"Protein {letter}, {gene_label}"
-                elif has_custom:
-                    gene_label = comp_obj.gene_name if has_gene else None
-                    if gene_label:
+                if has_custom:
+                    if has_gene:
                         display_name = f"{comp_obj.custom_name}, {gene_label}"
                     else:
                         display_name = comp_obj.custom_name
                 else:
-                    display_name = name
+                    display_name = f"CDS {cds_number}, {gene_label}"
                 
-
+                global_cds_index += 1
+                cds_index_in_circuit += 1
                 cds_list.append(cds_id)
                 display_names.append(display_name)
                 id2comp[cds_id] = comp
