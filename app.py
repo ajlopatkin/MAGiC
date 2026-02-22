@@ -63,8 +63,7 @@ def generate_equation_display(builder, result):
         constitutive_regs = [reg for reg in regulations if reg.get('type') == 'constitutive' and reg.get('target') == controlling_promoter]
         
         latex_name = _latex_short_name(protein_name)
-
-        if not affecting_regs or (len(affecting_regs) == 1 and affecting_regs[0].get('type') == 'constitutive'):
+        if not affecting_regs or all(reg.get('type') == 'constitutive' for reg in affecting_regs):
             # Constitutive expression - use simplified protein name
             equations[protein_name] = {
                 'latex': f"\\frac{{d[{latex_name}]}}{{dt}} = k_{{prod}} - \\gamma \\cdot [{latex_name}]",
@@ -83,7 +82,7 @@ def generate_equation_display(builder, result):
                 
                 if 'repression' in reg_type:
                     # Get hill coefficient (n) from parameters
-                    n = params.get('n', 2)  # Default to 2 if not specified
+                    n = int(params.get('n', 2))  # Default to 2 if not specified
                     if 'self' in reg_type:
                         reg_descriptions.append(f"Self-repression by {latex_name} (n={n})")
                         latex_terms.append(f"\\frac{{1}}{{1 + \\left(\\frac{{[{latex_name}]}}{{K_r}}\\right)^{n}}}")
@@ -96,7 +95,7 @@ def generate_equation_display(builder, result):
                         
                 elif 'activation' in reg_type:
                     # Get hill coefficient (n) from parameters
-                    n = params.get('n', 2)  # Default to 2 if not specified
+                    n = int(params.get('n', 2))  # Default to 2 if not specified
                     if 'self' in reg_type:
                         reg_descriptions.append(f"Self-activation by {latex_name} (n={n})")
                         latex_terms.append(f"\\frac{{[{latex_name}]^{n}}}{{K_a^{n} + [{latex_name}]^{n}}}")
@@ -255,7 +254,8 @@ def simulate():
                     'comp_number': component_counts[base_type],  # Store the number for dial interface
                     'base_type': base_type,
                     'customName': comp.get('customName', '').strip() if comp.get('customName') else None,
-                    'geneName': gene_name
+                    'geneName': gene_name,
+                    'parameters': comp.get('parameters', {})
                 })
         
         # Sort by position to create ordered circuit
@@ -495,6 +495,104 @@ def simulate():
             print(f"  {line}")
         print("=====================================")
         
+
+        # Apply per-component parameters from the modal (highest priority)
+        for comp in placed_components:
+            comp_name = comp['name']
+            base_type = comp['base_type']
+            comp_num = comp['comp_number']
+            params = comp.get('parameters', {})
+            
+            if not params:
+                continue
+            
+            if comp_name not in adjusted_constants:
+                adjusted_constants[comp_name] = {}
+            
+            param_mapping = {
+                'promoter': {f'promoter{comp_num}_strength': 'strength'},
+                'rbs': {f'rbs{comp_num}_efficiency': 'efficiency'},
+                'cds': {
+                    f'cds{comp_num}_translation_rate': 'translation_rate',
+                    f'cds{comp_num}_degradation_rate': 'degradation_rate',
+                    f'protein{comp_num}_initial_conc': 'init_conc'
+                },
+                'terminator': {f'terminator{comp_num}_efficiency': 'efficiency'},
+                'repressor_start': {
+                    f'repressor{comp_num}_constant': 'Kr',
+                    f'repressor{comp_num}_cooperativity': 'n',
+                    f'repressor{comp_num}_concentration': 'init_conc'
+                },
+                'repressor_end': {
+                    f'repressor{comp_num}_constant': 'Kr',
+                    f'repressor{comp_num}_cooperativity': 'n',
+                    f'repressor{comp_num}_concentration': 'concentration'
+                },
+                'activator_start': {
+                    f'activator{comp_num}_constant': 'Ka',
+                    f'activator{comp_num}_cooperativity': 'n',
+                    f'activator{comp_num}_concentration': 'concentration'
+                },
+                'activator_end': {
+                    f'activator{comp_num}_constant': 'Ka',
+                    f'activator{comp_num}_cooperativity': 'n',
+                    f'activator{comp_num}_concentration': 'concentration'
+                },
+                'inducer_start': {
+                    f'inducer{comp_num}_constant': 'Ka',
+                    f'inducer{comp_num}_cooperativity': 'n',
+                    f'inducer{comp_num}_concentration': 'concentration'
+                },
+                'inducer_end': {
+                    f'inducer{comp_num}_constant': 'Ka',
+                    f'inducer{comp_num}_cooperativity': 'n',
+                    f'inducer{comp_num}_concentration': 'concentration'
+                },
+                'inhibitor_start': {
+                    f'inhibitor{comp_num}_constant': 'Kr',
+                    f'inhibitor{comp_num}_cooperativity': 'n',
+                    f'inhibitor{comp_num}_concentration': 'concentration'
+                },
+                'inhibitor_end': {
+                    f'inhibitor{comp_num}_constant': 'Kr',
+                    f'inhibitor{comp_num}_cooperativity': 'n',
+                    f'inhibitor{comp_num}_concentration': 'concentration'
+                }
+            }
+            
+            mapping = param_mapping.get(base_type, {})
+            for frontend_key, backend_key in mapping.items():
+                if frontend_key in params:
+                    try:
+                        val = float(params[frontend_key])
+                        adjusted_constants[comp_name][backend_key] = val
+                        print(f"[PARAM OVERRIDE] {comp_name}.{backend_key} = {val} (from modal)")
+                    except (ValueError, TypeError):
+                        print(f"[PARAM OVERRIDE] Skipping invalid value for {comp_name}.{backend_key}: {params[frontend_key]}")
+                
+            mapping = param_mapping.get(base_type, {})
+
+            reg_key = None
+            regulator_types = ('repressor_start', 'repressor_end', 'activator_start', 'activator_end', 'inducer_start', 'inducer_end', 'inhibitor_start', 'inhibitor_end')
+            if base_type in regulator_types:
+                reg_base = base_type.replace('_start', '').replace('_end', '')
+                reg_key = f"{reg_base}_{comp_num}"
+                if reg_key not in adjusted_constants:
+                    adjusted_constants[reg_key] = {}
+
+            for frontend_key, backend_key in mapping.items():
+                if frontend_key in params:
+                    try:
+                        val = float(params[frontend_key])
+                        adjusted_constants[comp_name][backend_key] = val
+                        if reg_key:
+                            adjusted_constants[reg_key][backend_key] = val
+                        print(f"[PARAM OVERRIDE] {comp_name}.{backend_key} = {val} (from modal)")
+                        if reg_key:
+                            print(f"[PARAM OVERRIDE] Also applied to reg_key '{reg_key}'")
+                    except (ValueError, TypeError):
+                        print(f"[PARAM OVERRIDE] Skipping invalid value for {comp_name}.{backend_key}: {params[frontend_key]}")
+        
         # Create new builder with adjusted constants
         builder = OntologyBuilderUnified(adjusted_constants)
         
@@ -608,13 +706,20 @@ def simulate():
                         'is_floating': const_data.get('is_floating', True)
                     }
             
-            component_parameters.append({
-                'name': comp['name'],
-                'type': comp['type'],
-                'strength': comp['strength'],
-                'position': comp['position'],
-                'parameters': params
-            })
+            comp_entry = {
+            'name': comp['name'],
+            'type': comp['type'],
+            'strength': comp['strength'],
+            'position': comp['position'],
+            'parameters': params
+            }
+            if comp.get('customName'):
+                comp_entry['custom_name'] = comp['customName']
+            if comp.get('geneName'):
+                comp_entry['gene_name'] = comp['geneName']
+            component_parameters.append(comp_entry)
+            
+    
         
         # Prepare detailed response
         response_data = {

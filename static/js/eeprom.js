@@ -3355,12 +3355,30 @@ async function runSimulationFromCellboard(cellboard) {
                 
                 const regDisplay = document.getElementById('regulation-info-display');
                 
+                const regNameLookup = {};
+                if (result.protein_mapping) {
+                Object.entries(result.protein_mapping).forEach(([displayName, cdsName]) => {
+                        regNameLookup[cdsName] = displayName;
+                    });
+                }
+                if (result.circuits) {
+                    result.circuits.forEach(circuit => {
+                        if (circuit.components) {
+                            circuit.components.forEach(comp => {
+                                if (comp.custom_name && comp.name) {
+                                    regNameLookup[comp.name] = comp.custom_name;
+                                }
+                            });
+                        }
+                    });
+                }
+
                 result.regulations.forEach((reg, index) => {
                     const regDiv = document.createElement('div');
                     regDiv.className = 'regulation-item';
                     
-                    const source = reg.source || 'Constitutive';
-                    const target = reg.target || 'Unknown';
+                    const source = regNameLookup[reg.source] || formatComponentName(reg.source) || 'Constitutive';
+                    const target = regNameLookup[reg.target] || formatComponentName(reg.target) || 'Unknown';
                     const type = reg.type || 'constitutive';
                     
                     let explanation = '';
@@ -4547,9 +4565,33 @@ async function runSimulationFromPlacedComponents() {
                         <div class="regulation-list">
                     `;
                     
+                    const displayNameLookup = {};
+                    if (result.protein_mapping) {
+                    Object.entries(result.protein_mapping).forEach(([displayName, cdsName]) => {
+                            displayNameLookup[cdsName] = displayName;
+                        });
+                    }
+                    if (result.circuits) {
+                        result.circuits.forEach(circuit => {
+                            if (circuit.components) {
+                                circuit.components.forEach(comp => {
+                                    if (comp.custom_name && comp.name) {
+                                        displayNameLookup[comp.name] = comp.custom_name;
+                                    }
+                                });
+                            }
+                        });
+                    }
+
+                    function getDisplayName(rawName) {
+                        if (!rawName) return null;
+                        if (displayNameLookup[rawName]) return displayNameLookup[rawName];
+                        return formatComponentName(rawName);
+                    }
+
                     result.regulations.forEach((regulation, index) => {
-                        const source = formatComponentName(regulation.source) || 'Constitutive';
-                        const target = formatComponentName(regulation.target) || 'Unknown';
+                        const source = getDisplayName(regulation.source) || 'Constitutive';
+                        const target = getDisplayName(regulation.target) || 'Unknown';
                         const type = regulation.type || 'constitutive';
                         const params = regulation.parameters || {};
                         const isFloating = params.is_floating || false;
@@ -4585,17 +4627,17 @@ async function runSimulationFromPlacedComponents() {
                         if (type === 'constitutive' || source === 'Unknown' || source === 'Constitutive') {
                             explanation = 'This promoter produces protein at a constant rate (not regulated by other proteins)';
                         } else if (type === 'self_repression') {
-                            explanation = `${source} protein inhibits its own promoter ${target} (negative feedback loop)`;
+                            explanation = `${source} protein inhibits its own promoter, ${target}, (negative feedback loop)`;
                         } else if (type === 'self_activation') {
-                            explanation = `${source} protein activates its own promoter ${target} (positive feedback loop)`;
+                            explanation = `${source} protein activates its own promoter, ${target}, (positive feedback loop)`;
                         } else if (type === 'transcriptional_repression') {
                             explanation = `${source} protein inhibits ${target} transcription`;
                         } else if (type === 'transcriptional_activation') {
                             explanation = `${source} protein activates ${target} transcription`;
                         } else if (type === 'induced_activation') {
-                            explanation = `Environmental inducer ${source} activates ${target} transcription`;
+                            explanation = `Environmental inducer, ${source}, activates ${target} transcription`;
                         } else if (type === 'environmental_repression') {
-                            explanation = `Environmental inhibitor ${source} represses ${target} transcription`;
+                            explanation = `Environmental inhibitor, ${source}, represses ${target} transcription`;
                         } else {
                             explanation = `${source} protein regulates ${target} transcription`;
                         }
@@ -4609,7 +4651,7 @@ async function runSimulationFromPlacedComponents() {
                         }
                         if (params.n !== undefined) {
                             if (paramStr) paramStr += ', ';
-                            paramStr += `n=${params.n.toFixed(1)}`;
+                            paramStr += `n=${Number.isInteger(params.n) ? params.n : Math.round(params.n)}`;
                         }
                         if (params.concentration !== undefined) {
                             if (paramStr) paramStr += ', ';
@@ -4659,7 +4701,7 @@ async function runSimulationFromPlacedComponents() {
                             paramsHTML += '<table class="params-table">';
                             Object.entries(comp.parameters).forEach(([key, value]) => {
                                 const displayKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                                const displayValue = typeof value === 'number' ? value.toFixed(4) : value;
+                                const displayValue = typeof value === 'number' ? (Number.isInteger(value) ? value.toString() : value.toFixed(4)) : value;
                                 
                                 // Add calculation explanation if global parameters were applied
                                 let calculation = '';
