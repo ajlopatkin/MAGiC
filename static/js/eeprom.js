@@ -2666,9 +2666,16 @@ async function readBoardConfiguration() {
         
         for (const mux of muxChannels) {
             logLine(`\n=== Scanning MUX ${mux.toUpperCase()} ===`);
+
+             for (const channel of channelRange) {
+                 // Skip MUX G channels 4-15
+                 if (mux === 'g' && channel > 3) {
+                 continue;
+                }
             
-            for (const channel of channelRange) {
+            
                 logLine(`\n--- MUX ${mux.toUpperCase()}, Channel ${channel} ---`);
+    
                 
                 // Select MUX and channel (single MUX only - like August)
                 const selectCmd = `sm ${mux} ${channel}`;
@@ -2692,8 +2699,11 @@ async function readBoardConfiguration() {
                 const hexLinesBefore = LOG_LINES.filter(line => line.match(/^\s*[0-9A-Fa-f]{2,4}:\s+(?:[0-9A-Fa-f]{2}\s+){8,}/)).length;
                 await sendCommand('hd 0 16');  // Hex dump starting from address 0
                 await waitForHexDumpComplete(100);
-                
+
                 // Only retry if no hex data was captured from first attempt
+
+                // Currently second read is commented, may need to return if board stuggles with only one read
+                /*
                 const hexLinesAfter = LOG_LINES.filter(line => line.match(/^\s*[0-9A-Fa-f]{2,4}:\s+(?:[0-9A-Fa-f]{2}\s+){8,}/)).length;
                 if (hexLinesAfter === hexLinesBefore) {
                     // No hex data from first attempt - try second attempt like August pattern
@@ -2701,6 +2711,7 @@ async function readBoardConfiguration() {
                     await sendCommand('hd 0 16');  // Use correct syntax with start address
                     await waitForHexDumpComplete(100);
                 }
+                    */
                 
             }
         }
@@ -3752,38 +3763,54 @@ function extractGeneFromName(name) {
     return match ? match[1].toUpperCase() : '1';
 }
 
+const displayNames = {
+    'Promoter': 'Promoter',
+    'RBS': 'RBS',
+    'CDS': 'CDS',
+    'Terminator': 'Terminator',
+    'Repressor Start': 'Repressor Start',
+    'Repressor End': 'Repressor End', 
+    'Activator Start': 'Activator Start',
+    'Activator End': 'Activator End',
+    'Inducer Start': 'Inducer Start',
+    'Inducer End': 'Inducer End',
+    'Inhibitor Start': 'Inhibitor Start',
+    'Inhibitor End': 'Inhibitor End'
+};
+
 // Create visual component on board AND add to state
 function createPlacedComponent(cell, component) {
     const placedEl = document.createElement("div");
     placedEl.className = "placed-component has-parameters";
-    placedEl.textContent = component.name;
+    placedEl.textContent = displayNames[component.type];
     placedEl.dataset.component = component.type;
     placedEl.dataset.gene = component.gene;
     placedEl.dataset.strength = component.strength;
     
     // Apply component styling
     const colors = {
-        'Promoter': '#FF6B6B',
-        'Terminator': '#4ECDC4',
-        'RBS': '#FFD166',
-        'CDS': '#06D6A0',
-        'Repressor Start': '#A78BFA',
-        'Repressor End': '#7E22CE',
-        'Activator Start': '#3B82F6',
-        'Activator End': '#1E40AF',
-        'Inducer Start': '#14B8A6',
-        'Inducer End': '#0D9488',
-        'Inhibitor Start': '#F97316',
-        'Inhibitor End': '#EA580C'
+        'Promoter': '#ff859c',
+        'Terminator': 'rgb(225, 218, 3)',
+        'RBS': '#f39c12',
+        'CDS': '#3C5EB4',
+        'Repressor Start': '#e12929',
+        'Repressor End': '#e12929',
+        'Activator Start': '#6ccd7e',
+        'Activator End': '#6ccd7e',
+        'Inducer Start': '#0e7b39',
+        'Inducer End': '#0e7b39',
+        'Inhibitor Start': '#920702',
+        'Inhibitor End': '#920702'
     };
     
     placedEl.style.backgroundColor = colors[component.type] || '#999';
     placedEl.style.color = 'white';
     placedEl.style.fontWeight = 'bold';
-    placedEl.style.fontSize = '0.6rem';
+    placedEl.style.fontSize = '0.75rem';
     placedEl.style.padding = '2px';
     placedEl.style.borderRadius = '2px';
     placedEl.style.textAlign = 'center';
+    
     
     // IMPORTANT: Add to state so simulation can find it
     const x = cell.dataset.x;
