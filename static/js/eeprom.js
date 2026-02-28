@@ -326,14 +326,27 @@ window.resetParameters = function() {
             input.value = input.getAttribute('value');
         }
         
-        // Trigger change event to update any linked elements
+         // Trigger change event to update any linked elements
         input.dispatchEvent(new Event('change', { bubbles: true }));
     });
     
-    console.log('Parameters reset to defaults');
-    alert('All parameters have been reset to their default values.');
-};
-
+        // Clear individual parameter overrides on all placed components
+        if (typeof state !== 'undefined' && state.placedComponents) {
+            state.placedComponents.forEach(comp => {
+                comp.parameters = {}; 
+            });
+            console.log('Cleared individual component parameters');
+        }
+    
+        // Also trigger the specific reset function if it exists on the page
+        if (typeof resetComponentsToDefaults === 'function') {
+            resetComponentsToDefaults();
+        }
+    
+        console.log('Parameters reset to defaults');
+        alert('All parameters have been reset to their default values.');
+    };
+       
 // Setup global click handler to clear selection
 function setupGlobalClicks() {
     document.addEventListener('click', function(e) {

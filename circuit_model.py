@@ -392,6 +392,13 @@ class OntologyBuilderUnified:
             if fallbacks:
                 fallback_by_cds[cds_comp.label] = fallbacks
 
+        is_modelable = True
+        for c in comps:
+            if getattr(c, 'is_outside_cell', False):
+                is_modelable = False
+    
+        misplaced.append({**c.to_dict(), "reason": "Component built outside of cell boundaries."})
+
         # Create circuit dict
         circuit_dict = {
             "name": name,
@@ -399,7 +406,8 @@ class OntologyBuilderUnified:
             "extras": extras,
             "misplaced": misplaced,
             "component_counts": dict(type_counts),
-            "fallback_by_cds": fallback_by_cds
+            "fallback_by_cds": fallback_by_cds,
+            "modelable": is_modelable
         }
         self.circuits.append(circuit_dict)
 

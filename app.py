@@ -209,7 +209,7 @@ def simulate():
                 strength = comp.get('strength', 'norm')
                 
                 # Convert position to MUX/Channel format
-                channel = y * 8 + x
+                channel = y * 10 + x
                 mux_letter = 'A'  # Start with MUX A for simplicity
                 
                 # Map component types to hardware naming convention
