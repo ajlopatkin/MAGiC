@@ -2314,7 +2314,7 @@ async function connectToPort() {
         logLine('✅ Device initialization completed.');
         
         // Update UI
-        btnConnect.textContent = '✅ Connected';
+        btnConnect.textContent = 'Connected';
         btnConnect.disabled = true;
         btnConnect.classList.remove('btn-primary');
         btnConnect.classList.add('btn-success');
@@ -2328,7 +2328,7 @@ async function connectToPort() {
 
     } catch (err) {
         console.error("Error opening port:", err);
-        logLine(`❌ Error opening port: ${err.message}`);
+        logLine(`Error opening port: ${err.message}`);
         
         // Specific error handling
         if (err.message.includes('Failed to open serial port')) {
@@ -2780,7 +2780,7 @@ function showRawHexData(channelData) {
     let currentChannel = null;
     for (const line of hexLines) {
         // Look for MUX commands
-        const cmdMatch = line.match(/>\s*sm\s+([ab])\s+(\d+)/i);
+        const cmdMatch = line.match(/>\s*sm\s+([a-g])\s+(\d+)/i);
         if (cmdMatch) {
             const muxLetter = cmdMatch[1].toUpperCase();
             const channelNum = parseInt(cmdMatch[2], 10);
@@ -3763,7 +3763,10 @@ const displayNames = {
 // Create visual component on board AND add to state
 function createPlacedComponent(cell, component) {
     const placedEl = document.createElement("div");
-    placedEl.className = "placed-component has-parameters";
+    /*placedEl.className = "placed-component has-parameters";*/
+    const typeClass = component.type.toLowerCase().replace(/\s+/g, '-');
+    placedEl.className = `placed-component has-parameters component-${typeClass}`;
+    
     placedEl.textContent = displayNames[component.type];
     placedEl.dataset.component = component.type;
     placedEl.dataset.gene = component.gene;
@@ -3785,13 +3788,16 @@ function createPlacedComponent(cell, component) {
         'Inhibitor End': '#920702'
     };
     
+    
     placedEl.style.backgroundColor = colors[component.type] || '#999';
+    /*
     placedEl.style.color = 'white';
     placedEl.style.fontWeight = 'bold';
     placedEl.style.fontSize = '0.75rem';
     placedEl.style.padding = '2px';
     placedEl.style.borderRadius = '2px';
     placedEl.style.textAlign = 'center';
+    */
     
     
     // IMPORTANT: Add to state so simulation can find it
@@ -3972,12 +3978,12 @@ function analyzeScanFailure() {
         const line = LOG_LINES[i];
         
         // Count MUX commands
-        if (line.match(/>\s*sm\s+[ab]\s+\d+/)) {
+        if (line.match(/>\s*sm\s+[a-g]\s+\d+/)) {
             totalMuxCommands++;
         }
         
         // Count successful MUX selections
-        if (line.match(/MUX [AB], Channel \d+/) || line.match(/Selected MUX [AB], Channel \d+/)) {
+        if (line.match(/MUX [A-G], Channel \d+/) || line.match(/Selected MUX [A-G], Channel \d+/)) {
             successfulMuxCommands++;
         }
         

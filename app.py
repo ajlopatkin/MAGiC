@@ -754,7 +754,7 @@ def parse_hardware_log_old(log_lines):
         line = line.strip()
         
         # Look for MUX selection commands
-        cmd_match = re.search(r'>\s*sm\s+([ab])\s+(\d+)', line, re.IGNORECASE)
+        cmd_match = re.search(r'>\s*sm\s+([a-g])\s+(\d+)', line, re.IGNORECASE)
         if cmd_match:
             mux_letter = cmd_match.group(1).upper()
             channel_num = int(cmd_match.group(2))

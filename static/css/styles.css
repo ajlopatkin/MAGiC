@@ -445,22 +445,27 @@ label {
     display: flex;
 }
 
+/* makes manually placed and auto placed components the same size */
 .cell {
-   width: 30px;
-    height: 30px;
+    width: 120px !important;
+    height: 80px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    margin-right: 8px !important;
+    margin-bottom: 8px !important;
+    margin-top: 8px !important;
+    box-sizing: border-box !important;
     border: 3px solid green;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     position: relative;
     transition: var(--transition);
     background: var(--bs-secondary);
     cursor: crosshair;
-    margin-right: 8px; /* Horizontal overlap */
-    margin-bottom: 8px; /* Add vertical spacing */
-    margin-top: 8px; /* Add vertical spacing */
-    
+    border-radius: 8px;
+    backdrop-filter: blur(2px);
 }
 
 .cell.functional:hover {
