@@ -3804,13 +3804,6 @@ function createPlacedComponent(cell, component) {
     };
     
     placedEl.style.backgroundColor = colors[component.type] || '#999';
-    placedEl.style.color = 'white';
-    placedEl.style.fontWeight = 'bold';
-    placedEl.style.fontSize = '0.75rem';
-    placedEl.style.padding = '2px';
-    placedEl.style.borderRadius = '2px';
-    placedEl.style.textAlign = 'center';
-    
     
     // IMPORTANT: Add to state so simulation can find it
     const x = cell.dataset.x;
