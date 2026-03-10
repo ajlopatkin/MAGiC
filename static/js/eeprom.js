@@ -2294,7 +2294,7 @@ async function connectToPort() {
         
         // Allow Arduino to reset (critical for stable connection)
         logLine('⏳ Waiting for Arduino to initialize (2 seconds)...');
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 2000)); // may need to add longer time
         
         // Setup readers and writers with proper stream tracking
         setupSerialStreams();
@@ -2314,7 +2314,7 @@ async function connectToPort() {
         logLine('✅ Device initialization completed.');
         
         // Update UI
-        btnConnect.textContent = '✅ Connected';
+        btnConnect.textContent = 'Connected';
         btnConnect.disabled = true;
         btnConnect.classList.remove('btn-primary');
         btnConnect.classList.add('btn-success');
@@ -2432,6 +2432,35 @@ function setupSerialStreams() {
     }
 }
 
+// Function to check if user disconnected from port
+function handleDisconnect() {
+    // Clean up streams
+    if (reader) { // receives data from arduino, sends to browser
+        reader.releaseLock();
+        reader = null;
+    }
+    if (writer) { // from browser to arduino
+        writer.releaseLock();
+        writer = null;
+    }
+    
+    // Reset port
+    port = null;
+    isConnecting = false;
+    
+    // Update UI
+    btnConnect.textContent = 'Connect';
+    btnConnect.disabled = false;
+    btnConnect.classList.remove('btn-success');
+    btnConnect.classList.add('btn-primary');
+    
+    if (btnGetBoard) {
+        btnGetBoard.disabled = true;
+    }
+    
+    logLine('Device disconnected. Please reconnect and click Connect.');
+}
+
 // Continuous reading loop
 async function readLoop() {
     while (port && reader) {
@@ -2459,6 +2488,10 @@ async function readLoop() {
         } catch (err) {
             console.error("Read error:", err);
             logLine(`Read error: ${err.message}`);
+
+            // continously checks if a user disconneted from nano
+            handleDisconnect();
+
             break;
         }
     }
@@ -2683,7 +2716,7 @@ async function readBoardConfiguration() {
                     continue;
                 }
                 await waitForPrompt(100);
-                
+
                 // Check if MUX selection failed
                 const recentLog = LOG_LINES.slice(-3).join(' ').toLowerCase();
                 if (recentLog.includes('error') || recentLog.includes('fail')) {
