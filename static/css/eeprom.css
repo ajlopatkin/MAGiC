@@ -890,67 +890,84 @@ header.text-center:not(.page-header) .lead {
 }
 
 /* Hamburger Menu Button - Epic Cell Board Version */
+
 .hamburger-menu {
     position: fixed;
-    top: 20px;
-    left: 20px;
-    z-index: 10001;
+    top: 140px;
+    left: 30px;
+    z-index: 1000;
+    transition: all 0.4s ease;
+}
+
+/* When menu is open, move hamburger button behind and slightly fade it */
+.hamburger-toggle.active {
+    z-index: 900 !important;
+    pointer-events: none !important;
+    transform: translateX(-15px) scale(0.9) !important;
 }
 
 .hamburger-toggle {
+    background: rgba(32, 44, 45, 0.95);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    border: 1px solid rgba(178, 243, 95, 0.3);
+    border-radius: 16px;
+    padding: 0;
     width: 50px;
     height: 50px;
-    background: linear-gradient(135deg, 
-        rgba(32, 44, 45, 0.95) 0%, 
-        rgba(20, 29, 30, 0.98) 50%, 
-        rgba(32, 44, 45, 0.95) 100%);
-    border: 2px solid rgba(178, 243, 95, 0.4);
-    border-radius: 12px;
     cursor: pointer;
     display: flex;
     flex-direction: column;
-    justify-content: center;
     align-items: center;
+    justify-content: center;
     gap: 4px;
-    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    backdrop-filter: blur(10px);
     box-shadow: 
-        0 8px 32px rgba(0, 0, 0, 0.3),
-        inset 0 1px 2px rgba(255, 255, 255, 0.1),
-        0 0 0 1px rgba(178, 243, 95, 0.2);
-}
-
-.hamburger-toggle:hover {
-    transform: scale(1.05);
-    border-color: rgba(178, 243, 95, 0.7);
-    box-shadow: 
-        0 12px 40px rgba(0, 0, 0, 0.4),
-        inset 0 1px 2px rgba(255, 255, 255, 0.2),
-        0 0 0 1px rgba(178, 243, 95, 0.4),
-        0 0 20px rgba(178, 243, 95, 0.3);
+        0 4px 20px rgba(0, 0, 0, 0.3),
+        0 2px 8px rgba(178, 243, 95, 0.1);
+    transition: all 0.3s ease;
+    position: relative;
 }
 
 .hamburger-bar {
     width: 24px;
-    height: 3px;
-    background: linear-gradient(90deg, rgba(178, 243, 95, 0.9), rgba(74, 222, 128, 1));
-    border-radius: 2px;
-    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    height: 2px;
+    background: rgba(178, 243, 95, 0.9);
+    border-radius: 1px;
+    transition: all 0.3s ease;
+    position: relative;
 }
 
-/* Hamburger animation states */
+.hamburger-bar:nth-child(1) {
+    transform-origin: center;
+}
+
+.hamburger-bar:nth-child(2) {
+    width: 20px;
+    margin-left: 4px;
+}
+
+.hamburger-bar:nth-child(3) {
+    width: 16px;
+    margin-left: 8px;
+    transform-origin: center;
+}
+
+/* Active state animation */
 .hamburger-toggle.active .hamburger-bar:nth-child(1) {
     transform: rotate(45deg) translate(5px, 5px);
+    width: 24px;
+    margin-left: 0;
 }
 
 .hamburger-toggle.active .hamburger-bar:nth-child(2) {
     opacity: 0;
-    transform: scale(0);
+    transform: scaleX(0);
 }
 
 .hamburger-toggle.active .hamburger-bar:nth-child(3) {
-    transform: rotate(-45deg) translate(7px, -6px);
+    transform: rotate(-45deg) translate(7px, -7px);
+    width: 24px;
+    margin-left: 0;
 }
 
 /* Slide-out Parameters Panel - Enhanced Cell Board Style */
@@ -1009,25 +1026,31 @@ header.text-center:not(.page-header) .lead {
 }
 
 .close-panel {
-    width: 36px;
-    height: 36px;
-    background: rgba(178, 243, 95, 0.1);
+    background: rgba(27, 38, 39, 0.8);
     border: 1px solid rgba(178, 243, 95, 0.3);
-    border-radius: 8px;
-    color: rgba(178, 243, 95, 0.8);
+    color: #e5e7eb;
+    font-size: 1.1rem;
     cursor: pointer;
+    padding: 0;
+    border-radius: 12px;
+    width: 40px;
+    height: 40px;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .close-panel:hover {
-    background: rgba(178, 243, 95, 0.2);
     border-color: rgba(178, 243, 95, 0.6);
-    color: rgba(178, 243, 95, 1);
     transform: scale(1.1);
+    box-shadow: 
+        0 6px 25px rgba(0, 0, 0, 0.4),
+        0 3px 12px rgba(178, 243, 95, 0.2);
+    background: rgba(32, 44, 45, 1);
 }
+
 
 /* Parameters Panel Content */
 .parameters-content {
@@ -2961,32 +2984,6 @@ header.text-center:not(.page-header) .lead {
 @keyframes liquidGlassFlow2 { 
     from { opacity: 0; } 
     to { opacity: 0; } 
-}
-
-/* Optimize hamburger menu performance */
-.hamburger-toggle {
-    transition: transform 0.2s ease, border-color 0.2s ease !important;
-    transform-origin: center !important;
-    will-change: transform !important;
-}
-
-.hamburger-toggle:hover {
-    transform: scale(1.02) !important;
-}
-
-.hamburger-bar {
-    transition: transform 0.2s ease, opacity 0.2s ease !important;
-    will-change: transform, opacity !important;
-}
-
-.parameters-panel {
-    transition: left 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
-    will-change: left !important;
-}
-
-.panel-backdrop {
-    transition: opacity 0.2s ease !important;
-    will-change: opacity !important;
 }
 
 /* Regulation Type Badges */
