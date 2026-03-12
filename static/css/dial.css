@@ -806,22 +806,6 @@
 }
 
 /* Selection status styling - Modern card design */
-.selection-status {
-    background: linear-gradient(135deg, rgba(178, 243, 95, 0.08), rgba(178, 243, 95, 0.12));
-    border: 2px solid rgba(178, 243, 95, 0.2);
-    border-radius: 12px;
-    padding: 16px 20px;
-    margin-bottom: 20px;
-    font-size: 0.9rem;
-    color: #e0e0e0;
-    text-align: center;
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    backdrop-filter: blur(10px);
-    position: relative;
-    overflow: hidden;
-}
-
 .selection-status::before {
     content: '';
     position: absolute;
@@ -1111,6 +1095,7 @@ input:checked + .toggle-slider:before {
 
 /* Selection status styling */
 .selection-status {
+    position: relative;
     background: rgba(108, 117, 125, 0.1);
     border: 2px solid rgba(108, 117, 125, 0.3);
     border-radius: 8px;
@@ -1120,6 +1105,7 @@ input:checked + .toggle-slider:before {
     font-size: 0.9rem;
     color: #6c757d;
     transition: all 0.3s ease;
+    overflow: hidden;
 }
 
 .selection-status.selected {
@@ -1216,20 +1202,22 @@ input:checked + .toggle-slider:before {
     padding-right: 50px;
     padding-bottom: 50px;
     position: relative ;
-}       
+}  
+  
 .main-content .grid-container::after {
     content: '';
     position: absolute;
-    top: calc(1 * (calc(var(--cell-size) * 0.52) + 7px) + 224px); /* Start after 1 row */
-    left: calc(1 * (var(--cell-size) + 6.5px) + 92px); /* Start after 1 column */
-    width: calc(8 * (var(--cell-size) + 19px) + 343px); /* Width of 8 cells */
-    height: calc(8 * (calc(var(--cell-size) * 0.6) + 44.5px) + 228px); /* Height of 8 rows */
-    border: 4.5px solid var(--primary); /* Pink border */
+    top: calc(1 * (calc(var(--cell-size) * 0.52) + 7px) + 226px); 
+    left: calc(1 * (var(--cell-size) + 6.5px) + 94px); 
+    width: calc(8 * (var(--cell-size) + 19px) + 339px); 
+    height: calc(8 * (calc(var(--cell-size) * 0.6) + 44.5px) + 224px); 
+    border: 4.5px solid var(--primary); 
     opacity: 0.6; 
     border-radius: 20px;
     pointer-events: none;
     z-index: 15;
 }
+
 .main-content .grid-row {
     display: flex;
     gap: 8px;
