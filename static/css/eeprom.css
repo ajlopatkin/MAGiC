@@ -65,12 +65,15 @@ body {
 }
 */
 /* Page layout tweaks */
+
+/*
 .container {
-    max-width: 1100px; /* constrain content for better balance */
+    max-width: 1100px; /* constrain content for better balance 
     margin: 0 auto;
     padding: 1rem;
     max-height: 10000px;
 }
+*/
 
 /* Header - Basic styling for non-page-header elements */
 header.text-center:not(.page-header) h1 {
@@ -97,23 +100,20 @@ header.text-center:not(.page-header) .lead {
 
 /* ========== GENE COMPONENT PANEL STYLES (FROM DIAL.CSS) ========== */
 
-/* Selection status styling - Modern card design */
+/* Selection status styling */
 .selection-status {
-    background: linear-gradient(135deg, rgba(178, 243, 95, 0.08), rgba(178, 243, 95, 0.12));
-    border: 2px solid rgba(178, 243, 95, 0.2);
-    border-radius: 12px;
-    padding: 16px 20px;
-    margin-bottom: 20px;
-    font-size: 0.9rem;
-    color: #e0e0e0;
-    text-align: center;
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    backdrop-filter: blur(10px);
     position: relative;
+    background: rgba(108, 117, 125, 0.1);
+    border: 2px solid rgba(108, 117, 125, 0.3);
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 15px;
+    text-align: center;
+    font-size: 0.9rem;
+    color: #6c757d;
+    transition: all 0.3s ease;
     overflow: hidden;
 }
-
 .selection-status::before {
     content: '';
     position: absolute;
@@ -144,9 +144,9 @@ header.text-center:not(.page-header) .lead {
 }
 
 .selection-status span {
-    font-weight: 600;
-    letter-spacing: 0.5px;
+    font-weight: 500;
 }
+
 
 /* Unified Components Grid */
 .main-content .components-grid {
@@ -172,6 +172,7 @@ header.text-center:not(.page-header) .lead {
     border: 3px solid transparent;
     position: relative;
 }
+
 
 .main-content .component:hover {
     transform: translateY(-2px);
@@ -1461,25 +1462,6 @@ header.text-center:not(.page-header) .lead {
     display: grid;
 }
 
-/* Larger component blocks for dial mode: 120x65px for better visibility */
-.main-content .component {
-    width: 100%;
-    height: 65px;
-    border-radius: var(--border-radius);
-    font-size: 0.8rem;
-    font-weight: 600; 
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-    cursor: grab;
-    color: white;
-    transition: var(--transition);
-    border: 3px solid transparent;
-    position: relative;
-    text-align: center;
-}
-
 /* Template gene panels are hidden from normal flow; clones become visible */
 .gene-panel.template {
     display: none !important;
@@ -1530,6 +1512,7 @@ header.text-center:not(.page-header) .lead {
 }
 
 /* Design board with enhanced styling for dial mode */
+/*
 .main-content .cell-board {
     background: rgba(32, 44, 45);
     border: 3px solid transparent;
@@ -1538,12 +1521,20 @@ header.text-center:not(.page-header) .lead {
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     margin-bottom: 0.75rem;
 }
+*/
+.main-content .cell-board {
+    background: rgba(32, 44, 45);
+    border: 3px solid transparent;
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
 
 .main-content .cell-board h2 {
     color: white;
-    font-size: 1.1rem;
-    margin-bottom: 0.75rem;
-    border-bottom: 2px solid rgba(74, 222, 128, 0.3);
+    font-size: 1.25rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 3px solid transparent;
     padding-bottom: 0.5rem;
 }
 
@@ -1561,7 +1552,8 @@ header.text-center:not(.page-header) .lead {
     padding-right: 50px;
     padding-bottom: 50px;
     position: relative ;
-}       
+}   
+
 /* Removed problematic grid-container::after with undefined --cell-size variable */
 .main-content .grid-row {
     display: flex;
@@ -1840,15 +1832,6 @@ header.text-center:not(.page-header) .lead {
   font-size: 0.6em;
   vertical-align: super;
 }
-/* Lab subtitle styles disabled to use dial.css styles */
-/*
-.lab-subtitle {
-  font-size: 1.2rem;
-  color: #666;
-  margin-top: 10px;
-  font-weight: 300;
-}
-*/
 
 /* Accordion (details/summary) for the dial sidebar */
 .dial-accordion {
@@ -1906,11 +1889,11 @@ header.text-center:not(.page-header) .lead {
     box-shadow: 0 6px 18px rgba(0,0,0,0.4);
 }
 
-/* Page header styles - Epic Cell Board Control title */
+/* Page header styles - Epic Virtual Mode title */
 .page-header {
     background: var(--header-bg);
-    padding: 3rem 0 4rem 0;
-    margin-bottom: 2rem;
+    padding: 3rem 0 1.5rem 0;
+    margin-bottom: 0;
 }
 
 .page-header h1 {
@@ -1935,9 +1918,8 @@ header.text-center:not(.page-header) .lead {
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-    animation: cellBoardPulse 3s ease-in-out infinite alternate;
+    animation: titlePulse 3s ease-in-out infinite alternate;
 }
-
 @keyframes cellBoardPulse {
     0% { 
         filter: drop-shadow(0 0 10px rgba(178, 243, 95, 0.3)); 
@@ -1951,7 +1933,7 @@ header.text-center:not(.page-header) .lead {
 
 .page-header .lead {
     margin: 1.5rem 0 0 0;
-    color: #ffffff;
+    color: var(--header-subtitle-color);
     font-weight: 400;
     font-size: clamp(1rem, 2vw, 1.4rem);
     position: relative;
@@ -1960,7 +1942,6 @@ header.text-center:not(.page-header) .lead {
     letter-spacing: 0.5px;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
-
 
 /* Responsive Hamburger Menu Styles */
 @media (max-width: 768px) {
@@ -2036,12 +2017,11 @@ header.text-center:not(.page-header) .lead {
     100% { box-shadow: 0 0 5px rgba(178, 243, 95, 0.3); }
 }
 
-/* Full Width Main Content Area */
 .main-content {
     display: flex;
     flex-direction: column;
     gap: 2rem;
-    padding: 80px 20px 20px;
+    padding: 0 20px 20px;
     max-width: 1400px;
     margin: 0 auto;
     position: relative;
@@ -2064,7 +2044,8 @@ header.text-center:not(.page-header) .lead {
     padding-bottom: 0.5rem;
 }
 
-/* Enhanced cell board styling */
+
+
 .main-content .grid-container {
     width: 100%;
     max-width: 1100px;
@@ -2079,6 +2060,13 @@ header.text-center:not(.page-header) .lead {
     padding-right: 50px;
     padding-bottom: 50px;
     position: relative;
+}
+
+.main-content .grid-container::after {
+    top: calc(160px + 80px + 26px);
+    left: calc(120px + 28px); 
+    width: calc(80px * 8 + 148px + 16px); 
+    height: calc(132px + 80px * 8); 
 }
 
 .main-content .grid-row {
@@ -2896,6 +2884,7 @@ header.text-center:not(.page-header) .lead {
     }
 }
 
+/* COME BACK TO THIS */
 /* Force dial.css header layout to take precedence */
 .cell-board-header {
     display: flex !important;
@@ -2917,23 +2906,32 @@ header.text-center:not(.page-header) .lead {
 }
 
 .cell-board-title {
-    font-size: 4rem !important;
-    font-weight: 900 !important;
-    margin: 0 !important;
-    line-height: 1 !important;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-    letter-spacing: -0.02em !important;
-    text-align: center !important;
-    flex: 1 !important;
+  font-size: 6rem;
+  font-weight: 900;
+  margin: 0;
+  line-height: 1;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  letter-spacing: -0.02em;
+  text-align: center;
+  flex: 1;
+  text-shadow: 
+    -0.0075em 0.0075em 0 rgba(255, 255, 255, 0.15),
+    0.005em 0.005em 0 rgba(0, 0, 0, 0.4),
+    0.01em 0.01em 0 rgba(0, 0, 0, 0.35), 
+    0.015em 0.015em rgba(0, 0, 0, 0.3), 
+    0.02em 0.02em 0 rgba(0, 0, 0, 0.25), 
+    0.025em 0.025em 0 rgba(0, 0, 0, 0.2),
+    0.03em 0.03em 0 rgba(0, 0, 0, 0.15),
+    0.035em 0.035em 0 rgba(0, 0, 0, 0.1);
 }
 
 .cell-board-subtitle-container {
-    flex: 0 0 auto !important;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: flex-end !important;
-    text-align: right !important;
-    line-height: 1.2 !important;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  line-height: 1.2;
 }
 
 .lab-subtitle {
@@ -2946,27 +2944,14 @@ header.text-center:not(.page-header) .lead {
     transform: translateX(+10px) !important;
 }
 
+
+
 .lab-subtitle .line1,
 .lab-subtitle .line2, 
 .lab-subtitle .line3 {
     display: block !important;
     margin: 3px 0 !important;
     font-size: 2.0rem !important;
-}
-
-/* Board mode specific grid container overlay */
-.main-content .grid-container::after {
-    content: '' !important;
-    position: absolute !important;
-    top: calc(1 * (calc(var(--cell-size) * 0.52) + 7px) + 237px) !important; /* Start after 1 row */
-    left: calc(1 * (var(--cell-size) + 6.5px) + 88px) !important; /* Start after 1 column */
-    width: calc(8 * (var(--cell-size) + 19px) + 232px) !important; /* Width of 8 cells */
-    height: calc(8 * (calc(var(--cell-size) * 0.6) + 44.5px) + 225px) !important; /* Height of 8 rows */
-    border: 4.5px solid var(--primary) !important; /* Primary green border for board mode */
-    opacity: 0.6 !important;
-    border-radius: 20px !important;
-    pointer-events: none !important;
-    z-index: 15 !important;
 }
 
 /* Disable liquid glass animations for better performance in board mode */
