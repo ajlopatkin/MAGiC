@@ -939,20 +939,21 @@ input:checked + .toggle-slider:before {
 .gene-tabs::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 6px; }
 .gene-tabs { -webkit-overflow-scrolling: touch; }
 
-/* Unified Components Grid */
 .main-content .components-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-    gap: 0.75rem;
-    padding: 1rem 0;
+    grid-template-columns: repeat(12, 80px); 
+    column-gap: 1rem;
+    padding: 0;
+    justify-content: center;  /* Center the entire grid in the container */
+    margin: 0 auto;           
 }
 
-/* Larger component blocks for dial mode: 100px60px */
+/* Component blocks for gene panel */
 .main-content .component {
-    width: 100px;
-    height: 60px;
+    width: 80px; 
+    height: 80px; 
     border-radius: var(--border-radius);
-    font-size: 0.85rem;
+    font-size: 0.75rem;
     display: flex;
     align-items: center;
     justify-content: center;
