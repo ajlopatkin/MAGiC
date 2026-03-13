@@ -2200,17 +2200,15 @@ input:checked + .toggle-slider:before {
   line-height: 1.2;
 }
 
-/* Individual letter colors complementing dark UI theme */
-.letter-c { color: #b2f35f; } /* Primary green */
-.letter-e1 { color: #4ecdc4; } /* Teal accent */
-.letter-l2 { color: #a8e6cf; } /* Light green */
-.letter-l3 { color: #a8e6cf; } /* Light green */
-.letter-b { color: #ffd93d; } /* Warm yellow */
-.letter-o { color: #ffffff; } /* White for contrast */
-.letter-a { color: #ff6b6b; } /* Coral red */
-.letter-r { color: #74b9ff; } /* Light blue */
-.letter-d { color: #fd79a8; } /* Pink accent */
-
+.letter-c { color: #6ccd7e; } 
+.letter-e1 { color: #3C5EB4; } 
+.letter-l2 { color: #ff859c; } 
+.letter-l3 { color: rgb(225, 218, 3); } 
+.letter-b { color: #f39c12; } 
+.letter-o { color: #232323; } 
+.letter-a { color: #6ccd7e; } 
+.letter-r { color: #e12929; } 
+.letter-d { color: #3C5EB4; } 
 .letter-mini { 
   color: #4A90E2; 
   font-size: 0.6em;
