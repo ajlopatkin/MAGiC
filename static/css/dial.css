@@ -410,6 +410,7 @@
     margin-top: 20px;  
     color: white;   
 }
+
 /* Clean Modern Hamburger Menu */
 .hamburger-menu {
     position: fixed;
@@ -418,7 +419,6 @@
     z-index: 1000;
     transition: all 0.4s ease;
 }
-
 /* When menu is open, move hamburger button behind and slightly fade it */
 .hamburger-toggle.active {
     z-index: 900 !important;
@@ -789,12 +789,25 @@
 }
 
 /* Component palette */
+/*
 .main-content .component-palette {
     background: rgba(32, 44, 45);
     border: 3px solid transparent;
     border-radius: var(--border-radius);
     padding: 1.5rem;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+*/
+
+.main-content .component-palette {
+    position: sticky !important;
+    top: 0px !important;
+    background: rgba(32, 44, 45);
+    border: 3px solid transparent;
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 0.75rem;
 }
 
 .main-content .component-palette h2 {
@@ -2205,7 +2218,7 @@ input:checked + .toggle-slider:before {
 .letter-l2 { color: #ff859c; } 
 .letter-l3 { color: rgb(225, 218, 3); } 
 .letter-b { color: #f39c12; } 
-.letter-o { color: #232323; } 
+.letter-o { color: #ffffff; } 
 .letter-a { color: #6ccd7e; } 
 .letter-r { color: #e12929; } 
 .letter-d { color: #3C5EB4; } 
