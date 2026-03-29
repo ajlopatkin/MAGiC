@@ -722,7 +722,7 @@ class OntologyBuilderUnified:
                     "reason": "Outside valid circuit"
                 })
 
-def simulate_circuit(builder: OntologyBuilderUnified) -> Dict[str, Any]:
+def simulate_circuit(builder: OntologyBuilderUnified, colormap: str = 'cool') -> Dict[str, Any]:
     """Enhanced circuit simulation using your original equation building logic from Version 15.2"""
     import matplotlib
     matplotlib.use('Agg')  # Use non-interactive backend
@@ -1012,77 +1012,97 @@ def simulate_circuit(builder: OntologyBuilderUnified) -> Dict[str, Any]:
         sol = odeint(rhs, p0, t)
         
         # Create matplotlib plot with robust subplot handling
-        fig, ax = plt.subplots(figsize=(10, 6))
-        markers = ['o', 's', '^', 'D', 'v', '>', '<', '*']
-        
-        # Create circuit colors
+                # ── Theming colours (match the app's dark panel aesthetic) ──────────────────
+        PANEL_BG   = '#202c2d'   # matches results panel: rgba(32, 44, 45)
+        AXES_BG    = '#192225'   # slightly darker inset for the plot area
+        TEXT_COLOR = '#d8ede0'   # warm off-white with a faint green tint
+        GRID_COLOR = '#2e4245'   # subtle grid lines
+        SPINE_COLOR = '#3a5558'  # axis border colour
+
+        # ── Per-protein colours sampled from the chosen colormap ────────────────────
+        # Each colormap has a tuned [lo, hi] range to skip dark or washed-out ends.
+        _COLORMAP_RANGES = {
+            'cool':   (0.05, 0.95),  # cyan → magenta, no dark ends
+            'spring': (0.05, 0.95),  # magenta → yellow, no dark ends
+            'autumn': (0.00, 0.95),  # red → yellow, vibrant throughout
+            'turbo':  (0.10, 0.90),  # full vivid rainbow, skip very dark blue
+            'plasma': (0.18, 0.78),  # skip darkest indigo-blue and palest yellow
+        }
+        _safe_colormap = colormap if colormap in _COLORMAP_RANGES else 'cool'
+        _lo, _hi = _COLORMAP_RANGES[_safe_colormap]
+        import matplotlib.cm as cm
+        _cmap = cm.get_cmap(_safe_colormap)
+        n_proteins = len(cds_list)
+        if n_proteins == 1:
+            _positions = [(_lo + _hi) / 2]
+        else:
+            _positions = np.linspace(_lo, _hi, n_proteins)
+        protein_colors = [_cmap(p) for p in _positions]   # list of RGBA tuples
+
+        # Keep circuit_colors for backward-compat with export_data (map name → first protein colour)
         circuit_colors = {}
-        colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f']
         for i, circ in enumerate(cell["circuits"]):
-            circuit_colors[circ["name"]] = colors[i % len(colors)]
-        
+            # Find the first protein that belongs to this circuit
+            first_idx = next(
+                (j for j, cid in enumerate(cds_list) if id2circ[cid]["name"] == circ["name"]),
+                i % n_proteins
+            )
+            circuit_colors[circ["name"]] = matplotlib.colors.to_hex(protein_colors[first_idx])
+
+        # ── Create figure with dark theme ─────────────────────────────────────────
+        fig, ax = plt.subplots(figsize=(10, 6))
+        fig.patch.set_facecolor(PANEL_BG)
+        ax.set_facecolor(AXES_BG)
+        for spine in ax.spines.values():
+            spine.set_edgecolor(SPINE_COLOR)
+        ax.tick_params(colors=TEXT_COLOR, labelsize=9)
+        ax.xaxis.label.set_color(TEXT_COLOR)
+        ax.yaxis.label.set_color(TEXT_COLOR)
+        ax.title.set_color(TEXT_COLOR)
+
         print(f"DEBUG: About to plot {len(cds_list)} proteins: {cds_list}")
-        
-        # Plot each protein with circuit-specific colors
+
+        # ── Plot each protein ─────────────────────────────────────────────────────
         for i, cds_id in enumerate(cds_list):
-            comp = id2comp[cds_id]
-            circ = id2circ[cds_id]
-            color = circuit_colors[circ["name"]]
+            color = protein_colors[i]
             display_name = display_names[i]
             
-            # Add noise to separate overlapping curves - each protein gets unique noise pattern
-            data_range = np.max(sol[:, i]) - np.min(sol[:, i])
-            
-            # For constitutive circuits: significant noise + small constant offset for guaranteed separation
-            if not has_regulatory_feedback:
-                # Much larger noise amplitude for better visual separation
-                concentration_level = np.mean(sol[:, i])
-                noise_amplitude = max(0.25 * concentration_level, 0.005)  # 25% noise or 0.005 μM minimum
-                
-                # Use unique random seed for each protein to create different noise patterns
-                np.random.seed(42 + i * 17)  # Different seed spacing for more variation
-                noise_pattern = np.random.normal(0, noise_amplitude, len(sol[:, i]))
-                np.random.seed()  # Reset to random seed
-                
-                # Add small constant offset to guarantee visual separation
-                small_offset = i * 0.008  # 0, 0.008, 0.016 μM offsets
-                final_data = sol[:, i] + noise_pattern + small_offset
-                
-                print(f"DEBUG: Protein {i+1} - noise amplitude: {noise_amplitude:.4f}, offset: {small_offset:.3f}")
-            else:
-                # For repressilator systems, minimal noise
-                noise_amplitude = 0.02 * data_range if data_range > 0 else 0
-                if noise_amplitude > 0:
-                    np.random.seed(42 + i * 13)
-                    final_data = sol[:, i] + np.random.normal(0, noise_amplitude, len(sol[:, i]))
-                    np.random.seed()
-                else:
-                    final_data = sol[:, i]
-            
-            # Plot with different colors only, no markers
-            ax.plot(t, final_data, linewidth=2, label=display_name,
-                    color=color, alpha=0.9)
-            
-            print(f"DEBUG: Plotted protein {i+1}/3: {display_name} with color {color}")
-        
+            # no noise just raw data, removed noise logic
+            final_data = sol[:, i]
+
+            ax.plot(t, final_data, linewidth=2.2, label=display_name,
+                    color=color, alpha=0.92)
+
+            print(f"DEBUG: Plotted protein {i+1}/{n_proteins}: {display_name}")
+
         # Debug: Check how many lines were actually plotted
         lines_count = len(ax.lines)
         print(f"DEBUG: Total lines plotted on axes: {lines_count} (should be {len(cds_list)})")
-        
-        ax.set_xlabel("Time (hours)")
-        ax.set_ylabel("Concentration (μM)")
-        ax.set_title("Genetic Circuit Simulation")
-        ax.legend(shadow=True)
-        ax.grid(True)
-        
-        # Convert plot to base64 for web display
+
+        # ── Axis labels, title, grid, legend ─────────────────────────────────────
+        ax.set_xlabel("Time (hours)", fontsize=10)
+        ax.set_ylabel("Concentration (μM)", fontsize=10)
+        ax.set_title("Genetic Circuit Simulation", fontsize=12, fontweight='bold', pad=12)
+        ax.grid(True, color=GRID_COLOR, linewidth=0.7, linestyle='--', alpha=0.9)
+
+        legend = ax.legend(
+            shadow=False,
+            facecolor=PANEL_BG,
+            edgecolor=SPINE_COLOR,
+            labelcolor=TEXT_COLOR,
+            fontsize=9,
+            framealpha=0.85
+        )
+
+        # ── Render to base64 ──────────────────────────────────────────────────────
         import io, base64
         img_buffer = io.BytesIO()
-        fig.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
+        fig.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight',
+                    facecolor=PANEL_BG)
         img_buffer.seek(0)
         plot_base64 = base64.b64encode(img_buffer.read()).decode()
         plt.close(fig)
-        
+
         # Prepare time series data
         time_series = {'time': t.tolist()}
         for i, display_name in enumerate(display_names):
@@ -1128,6 +1148,53 @@ def simulate_circuit(builder: OntologyBuilderUnified) -> Dict[str, Any]:
         if builder.unpaired_regulators:
             result['warnings'].extend([f"Unpaired regulator: {reg}" for reg in builder.unpaired_regulators])
         
+        # Build export data for standalone script generation
+        export_regulations = []
+        for i, cds_id in enumerate(cds_list):
+            for reg in regs_by_cds.get(cds_id, []):
+                typ = reg["type"]
+                pr = reg.get("parameters", {})
+                src_name = reg.get("source")
+                if typ == "constitutive":
+                    export_regulations.append({
+                        "source_idx": None,
+                        "target_idx": i,
+                        "type": "constitutive",
+                        "n": 2
+                    })
+                    continue
+                src_idx = None
+                if src_name and src_name in cds_name_to_indices:
+                    src_idx = cds_name_to_indices[src_name][0]
+                reg_entry = {
+                    "source_idx": src_idx,
+                    "target_idx": i,
+                    "type": typ,
+                    "n": pr.get("n", 2),
+                    "concentration": pr.get("concentration", 1.0)
+                }
+                if "Kr" in pr:
+                    reg_entry["Kr"] = pr["Kr"]
+                if "Ka" in pr:
+                    reg_entry["Ka"] = pr["Ka"]
+                export_regulations.append(reg_entry)
+
+        result['export_data'] = {
+            "protein_names": display_names,
+            "colors": [matplotlib.colors.to_hex(protein_colors[i]) for i in range(len(cds_list))],
+            "has_regulatory_feedback": has_regulatory_feedback,
+            "p0": p0.tolist(),
+            "params_list": [
+                {
+                    "k0": cds_params[cds_id]["k0"],
+                    "kprod": cds_params[cds_id]["kprod"],
+                    "degradation": cds_params[cds_id]["degradation"],
+                }
+                for cds_id in cds_list
+            ],
+            "regulations_list": export_regulations
+        }
+
         return result
     
     except Exception as e:

@@ -1455,11 +1455,16 @@ function addPortsToCell(cell, componentType) {
                 console.log('✓ Sending to backend: apply_dial=false, all global params=1.0');
             }
             
+            // Read colormap choice (dropdown may not exist on all pages)
+            const colormapSelect = document.getElementById('colormap-select');
+            const chosenColormap = colormapSelect ? colormapSelect.value : 'cool';
+
             // Prepare simulation data
             const simulationData = {
                 cellboard: state.cellboard,
                 dial: dialData,
-                apply_dial: applyDial
+                apply_dial: applyDial,
+                colormap: chosenColormap
             };
             
             console.log('Sending simulation data:', simulationData);
