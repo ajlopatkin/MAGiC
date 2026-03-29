@@ -599,6 +599,19 @@
                         <button class="btn btn-secondary" onclick="resetParameters()">
                             <i class="fas fa-undo me-2"></i>Reset Parameters
                         </button>
+                        <button id="export-script-btn" class="btn btn-secondary" onclick="exportScript()" title="Download a standalone Python script that reproduces the current simulation plot">
+                            <i class="fas fa-download me-2"></i>Export to .py
+                        </button>
+                        <div class="colormap-selector" title="Colour palette used for the simulation plot">
+                            <label for="colormap-select" style="font-size:0.78rem; color:#9ca3af; margin-bottom:3px; display:block;">Plot colours</label>
+                            <select id="colormap-select" class="form-select form-select-sm" style="background:#192225; color:#d8ede0; border-color:#3a5558; font-size:0.82rem; min-width:130px;">
+                                <option value="cool">Cool (cyan→magenta)</option>
+                                <option value="spring">Spring (magenta→yellow)</option>
+                                <option value="autumn">Autumn (red→yellow)</option>
+                                <option value="turbo">Turbo (full rainbow)</option>
+                                <option value="plasma">Plasma (purple→orange)</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 
@@ -808,6 +821,40 @@
         }, 2000);
 
         // resetParameters function moved to eeprom.js as window.resetParameters to avoid conflicts
+        function exportScript() {
+            const btn = document.getElementById('export-script-btn');
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Generating...';
+            btn.disabled = true;
+
+            fetch('/export_script')
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(data => {
+                            throw new Error(data.message || 'Export failed');
+                        });
+                    }
+                    return response.blob();
+                })
+                .then(blob => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'circuit_simulation.py';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                })
+                .catch(err => {
+                    alert('Export failed: ' + err.message + '\n\nPlease run a simulation first.');
+                })
+                .finally(() => {
+                    btn.innerHTML = originalHtml;
+                    btn.disabled = false;
+                });
+        }
+    
     </script>
 </body>
 </html>
