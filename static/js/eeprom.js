@@ -2312,6 +2312,10 @@ async function connectToPort() {
         logLine('🔧 Firmware ready for EEPROM operations');
         
         logLine('✅ Device initialization completed.');
+
+        logLine('🎉 Connection established successfully!');
+        logLine('You can now click "Read Circuit from Board" to scan for components.');
+        await readBoardConfigurationOnly();
         
         // Update UI
         btnConnect.textContent = 'Connected';
@@ -2323,8 +2327,7 @@ async function connectToPort() {
             btnGetBoard.disabled = false;
         }
 
-        logLine('🎉 Connection established successfully!');
-        logLine('You can now click "Read Circuit from Board" to scan for components.');
+    
 
     } catch (err) {
         console.error("Error opening port:", err);
@@ -2349,6 +2352,48 @@ async function connectToPort() {
         if (btnGetBoard) {
             btnGetBoard.disabled = true;
         }
+    }
+}
+
+// New function for auto-scan without population
+async function readBoardConfigurationOnly() {
+    if (!port) {
+        logLine("Not connected to a COM port.");
+        return;
+    }
+    
+    logLine('Scanning all MUX channels - will NOT populate board');
+    
+    try {
+        // Initialize I2C bus
+        await initializeI2CBus();
+        
+        // Read all MUX channels
+        const muxChannels = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
+        
+        for (const mux of muxChannels) {
+            for (let channel = 0; channel < 16; channel++) {
+                if (mux === 'g' && channel > 3) continue;
+                
+                logLine(`MUX ${mux.toUpperCase()}, Channel ${channel}:`);
+                
+                // Select MUX and channel
+                await sendCommand(`sm ${mux} ${channel}`);
+                await waitForPrompt(100);
+                
+                // Read EEPROM
+                await sendCommand('er 0 64');
+                
+                // Hex dump (shows what's in the EEPROM)
+                await sendCommand('hd 0 16');
+                await waitForHexDumpComplete(100);
+            }
+        }
+        
+        logLine('Complete');
+        
+    } catch (err) {
+        logLine(`Auto-scan error: ${err.message}`);
     }
 }
 
