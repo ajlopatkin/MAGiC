@@ -148,20 +148,23 @@
                     <hr style="border-color: rgba(74, 222, 128, 0.2);">
 
                     <!-- Board Reading -->
+                     <!-- 
                     <p class="text-muted" style="font-size: 0.85rem;">Read the current genetic circuit configuration from the physical board.</p>
                     <div class="d-flex gap-2 mb-3">
                         <button id="btn-get-board" class="btn btn-success btn-sm">
                             <i class="fas fa-download me-2"></i>Read Circuit from Board
+                             
                         </button>
                         <button id="btn-diagnose-board" class="btn btn-info btn-sm">
                             <i class="fas fa-search me-2"></i>Diagnose Cell Board
                         </button>
+                      
                     </div>
 
                     <small class="text-muted d-block mb-3" style="font-size: 0.75rem;">
                         This will scan all MUX channels and populate the design board with detected components.
                     </small>
-
+  -->
                     <hr style="border-color: rgba(74, 222, 128, 0.2);">
 
                     <!-- Communication Log -->
@@ -591,7 +594,10 @@
                     <!-- Controls -->
                     <div class="controls">
                         <button id="simulate-btn" class="btn btn-primary">
-                            <i class="fas fa-play me-2"></i>Run Enhanced Simulation
+                            <i class="fas fa-play me-2"></i>Run Virtual Simulation
+                        </button>
+                          <button id="btn-get-board" class="btn btn-success">
+                            <i class="fas fa-download me-2"></i>Run Board Simulation
                         </button>
                         <button id="clear-btn" class="btn btn-secondary">
                             <i class="fas fa-trash me-2"></i>Clear Board

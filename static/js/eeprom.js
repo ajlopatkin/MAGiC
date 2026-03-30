@@ -4883,7 +4883,7 @@ async function runSimulationFromPlacedComponents() {
         // Re-enable button
         if (simulateBtn) {
             simulateBtn.disabled = false;
-            simulateBtn.innerHTML = '<i class="fas fa-play me-2"></i>Run Simulation';
+            simulateBtn.innerHTML = '<i class="fas fa-play me-2"></i>Run Virtual Simulation';
         }
     }
 }
