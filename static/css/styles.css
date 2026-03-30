@@ -1204,7 +1204,20 @@ label {
     pointer-events: none;
 }
 
+.connector-path-promoter { stroke: #ff859c !important; }
+.connector-path-terminator { stroke: rgb(225, 218, 3) !important; }
+.connector-path-rbs { stroke: #f39c12 !important; }
+.connector-path-cds { stroke: #3C5EB4 !important; }
+.connector-path-repressor { stroke: #e12929 !important; }
+.connector-path-activator { stroke: #6ccd7e !important; }
+.connector-path-inducer { stroke: #0e7b39 !important; }
+.connector-path-inhibitor { stroke: #920702 !important; }
+.connector-path-default { stroke: #e88802 !important; }
+
+
+
 /* Connector handles */
+/*
 .connector-handle {
     fill: #e88802;
     stroke: #333;
@@ -1217,6 +1230,31 @@ label {
     fill: #ffb347;
     r: 6;
 }
+*/
+
+.connector-handle {
+    stroke: #333;
+    stroke-width: 1;
+    cursor: grab;
+    pointer-events: auto;
+    transition: fill 0.2s ease;
+    r: 4;
+}
+
+.connector-handle:hover {
+    r: 6;
+}
+
+/* Handle colors matching component types */
+.handle-promoter { fill: #ff859c; }
+.handle-terminator { fill: rgb(225, 218, 3); }
+.handle-rbs { fill: #f39c12; }
+.handle-cds { fill: #3C5EB4; }
+.handle-repressor { fill: #e12929; }
+.handle-activator { fill: #6ccd7e; }
+.handle-inducer { fill: #0e7b39; }
+.handle-inhibitor { fill: #920702; }
+.handle-default { fill: #e88802; }
 
 .connector-handle:active {
     cursor: grabbing;

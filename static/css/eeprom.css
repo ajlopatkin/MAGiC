@@ -3145,6 +3145,8 @@ header.text-center:not(.page-header) .lead {
 }
 
 /* Connection Port Styling */
+
+/*
 .component-port {
     position: absolute;
     width: 16px;
@@ -3156,6 +3158,18 @@ header.text-center:not(.page-header) .lead {
     z-index: 10;
     transition: all 0.2s ease;
 }
+*/
+.component-port {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 10;
+    transition: all 0.2s ease;
+    border: 2px solid rgba(255, 255, 255, 0.5);
+}
+
 
 .component-port:hover {
     background-color: #666;
@@ -3164,6 +3178,8 @@ header.text-center:not(.page-header) .lead {
 }
 
 /* Output Port - Top Right for Start components */
+
+/*
 .output-port {
     top: 8px;
     right: 8px;
@@ -3171,12 +3187,13 @@ header.text-center:not(.page-header) .lead {
     border-color: #2E7D32;
 }
 
+
 .output-port:hover {
     background-color: #66BB6A;
     border-color: var(--primary);
 }
 
-/* Input Port - Top Right for End components */
+
 .input-port {
     top: 8px;
     right: 8px;
@@ -3184,7 +3201,9 @@ header.text-center:not(.page-header) .lead {
     border-color: #1565C0;
 }
 
+
 .input-port:hover {
     background-color: #42A5F5;
     border-color: var(--primary);
 }
+*/
