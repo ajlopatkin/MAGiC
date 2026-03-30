@@ -1628,6 +1628,79 @@ class GeneticConnectorEEPROM {
         this.isInput = false;
     }
 
+    getArrowClass(componentType) {
+    const typeMap = {
+        'Promoter': 'arrow-promoter',
+        'Terminator': 'arrow-terminator',
+        'RBS': 'arrow-rbs',
+        'CDS': 'arrow-cds',
+        'Repressor Start': 'arrow-repressor',
+        'Repressor End': 'arrow-repressor',
+        'Activator Start': 'arrow-activator',
+        'Activator End': 'arrow-activator',
+        'Inducer Start': 'arrow-inducer',
+        'Inducer End': 'arrow-inducer',
+        'Inhibitor Start': 'arrow-inhibitor',
+        'Inhibitor End': 'arrow-inhibitor'
+    };
+    return typeMap[componentType] || 'arrow-default';
+    }
+
+    getArrowColor(componentType) {
+    const colorMap = {
+        'Promoter': '#ff859c',
+        'Terminator': 'rgb(225, 218, 3)',
+        'RBS': '#f39c12',
+        'CDS': '#3C5EB4',
+        'Repressor Start': '#e12929',
+        'Repressor End': '#e12929',
+        'Activator Start': '#6ccd7e',
+        'Activator End': '#6ccd7e',
+        'Inducer Start': '#0e7b39',
+        'Inducer End': '#0e7b39',
+        'Inhibitor Start': '#920702',
+        'Inhibitor End': '#920702'
+    };
+    return colorMap[componentType] || '#e88802';
+    }
+
+    getPathClass(componentType) {
+    const typeMap = {
+        'Promoter': 'connector-path-promoter',
+        'Terminator': 'connector-path-terminator',
+        'RBS': 'connector-path-rbs',
+        'CDS': 'connector-path-cds',
+        'Repressor Start': 'connector-path-repressor',
+        'Repressor End': 'connector-path-repressor',
+        'Activator Start': 'connector-path-activator',
+        'Activator End': 'connector-path-activator',
+        'Inducer Start': 'connector-path-inducer',
+        'Inducer End': 'connector-path-inducer',
+        'Inhibitor Start': 'connector-path-inhibitor',
+        'Inhibitor End': 'connector-path-inhibitor'
+    };
+    return typeMap[componentType] || 'connector-path-default';
+    }
+
+    getHandleClass(componentType) {
+    const typeMap = {
+        'Promoter': 'handle-promoter',
+        'Terminator': 'handle-terminator',
+        'RBS': 'handle-rbs',
+        'CDS': 'handle-cds',
+        'Repressor Start': 'handle-repressor',
+        'Repressor End': 'handle-repressor',
+        'Activator Start': 'handle-activator',
+        'Activator End': 'handle-activator',
+        'Inducer Start': 'handle-inducer',
+        'Inducer End': 'handle-inducer',
+        'Inhibitor Start': 'handle-inhibitor',
+        'Inhibitor End': 'handle-inhibitor'
+    };
+    return typeMap[componentType] || 'handle-default';
+    }
+
+    /*
     init(port) {
         ConnectorManagerEEPROM.connectionsLayer.appendChild(this.element);
         this.element.style.display = 'block';
@@ -1651,6 +1724,19 @@ class GeneticConnectorEEPROM {
         this.staticElement.setAttribute("data-drag", `${port.id}:port`);
         this.dragElement.setAttribute("data-drag", `${this.id}:connector`);
 
+        const componentType = port.component.type;
+        const handleClass = this.getHandleClass(componentType);
+        const pathClass = this.getPathClass(componentType);
+        const arrowClass = this.getArrowClass(componentType); 
+        const marker = document.querySelector('#arrow'); 
+        this.path.classList.add(pathClass);
+        this.inputHandle.classList.add(handleClass);
+        this.outputHandle.classList.add(handleClass);
+
+        if (marker) {
+        marker.classList.add(arrowClass);
+        }
+
         // Set initial positions
         const pos = port.getGlobalPosition();
         this.inputHandle.setAttribute('cx', pos.x);
@@ -1659,7 +1745,74 @@ class GeneticConnectorEEPROM {
         this.outputHandle.setAttribute('cy', pos.y);
 
         this.updatePath();
+
     }
+*/
+
+    init(port) {
+    ConnectorManagerEEPROM.connectionsLayer.appendChild(this.element);
+    this.element.style.display = 'block';
+    
+    this.isInput = port.isInput;
+    this.staticPort = port;
+
+    if (port.isInput) {
+        this.inputPort = port;
+        this.dragElement = this.outputHandle;
+        this.staticElement = this.inputHandle;
+    } else {
+        this.outputPort = port;
+        this.dragElement = this.inputHandle;
+        this.staticElement = this.outputHandle;
+    }
+
+    this.staticElement.setAttribute("data-drag", `${port.id}:port`);
+    this.dragElement.setAttribute("data-drag", `${this.id}:connector`);
+
+    const componentType = port.component.type;
+    const handleClass = this.getHandleClass(componentType);
+    const pathClass = this.getPathClass(componentType);
+    const arrowColor = this.getArrowColor(componentType);
+    
+    this.path.classList.add(pathClass);
+    this.inputHandle.classList.add(handleClass);
+    this.outputHandle.classList.add(handleClass);
+
+    const markerId = `arrow-${this.id}`;
+    const defs = document.querySelector('#connector-svg defs');
+    
+    // Remove old marker if it exists
+    const oldMarker = document.getElementById(markerId);
+    if (oldMarker) oldMarker.remove();
+    
+    // Create new marker
+    const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+    marker.setAttribute('id', markerId);
+    marker.setAttribute('markerWidth', '10');
+    marker.setAttribute('markerHeight', '10');
+    marker.setAttribute('refX', '8');
+    marker.setAttribute('refY', '3');
+    marker.setAttribute('orient', 'auto');
+    marker.setAttribute('markerUnits', 'strokeWidth');
+    
+    const arrowPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    arrowPath.setAttribute('d', 'M0,0 L0,6 L9,3 z');
+    arrowPath.setAttribute('fill', arrowColor);
+    marker.appendChild(arrowPath);
+    defs.appendChild(marker);
+    
+    // Use this unique marker for the path
+    this.path.setAttribute('marker-end', `url(#${markerId})`);
+
+    // Set initial positions
+    const pos = port.getGlobalPosition();
+    this.inputHandle.setAttribute('cx', pos.x);
+    this.inputHandle.setAttribute('cy', pos.y);
+    this.outputHandle.setAttribute('cx', pos.x);
+    this.outputHandle.setAttribute('cy', pos.y);
+
+    this.updatePath();
+}
 
     updatePath() {
         const x1 = parseFloat(this.inputHandle.getAttribute('cx'));
@@ -1760,6 +1913,7 @@ class GeneticConnectorEEPROM {
         }
     }
 
+    /*
     connectToPort(port) {
         if (this.isInput) {
             this.outputPort = port;
@@ -1771,6 +1925,31 @@ class GeneticConnectorEEPROM {
         port.addConnector(this);
         this.updateHandle(port);
 
+        const sourceComp = this.isInput ? this.outputPort : this.inputPort;
+        if (sourceComp) {
+        const componentType = sourceComp.component.type;
+        const handleClass = this.getHandleClass(componentType);
+        const pathClass = this.getPathClass(componentType);
+        const arrowClass = this.getArrowClass(componentType);
+        const marker = document.querySelector('#arrow');
+        
+        // Remove old classes
+        this.inputHandle.classList.remove('handle-promoter', 'handle-terminator', 'handle-rbs', 'handle-cds', 'handle-repressor', 'handle-activator', 'handle-inducer', 'handle-inhibitor', 'handle-default');
+        this.outputHandle.classList.remove('handle-promoter', 'handle-terminator', 'handle-rbs', 'handle-cds', 'handle-repressor', 'handle-activator', 'handle-inducer', 'handle-inhibitor', 'handle-default');
+        this.path.classList.remove('connector-path-promoter', 'connector-path-terminator', 'connector-path-rbs', 'connector-path-cds', 'connector-path-repressor', 'connector-path-activator', 'connector-path-inducer', 'connector-path-inhibitor', 'connector-path-default');
+         if (marker) { 
+            marker.classList.remove('arrow-promoter', 'arrow-terminator', 'arrow-rbs', 'arrow-cds', 'arrow-repressor', 'arrow-activator', 'arrow-inducer', 'arrow-inhibitor', 'arrow-default');
+        }
+        
+        // Add new class
+        this.inputHandle.classList.add(handleClass);
+        this.outputHandle.classList.add(handleClass);
+        this.path.classList.add(pathClass);
+        if (marker) { 
+            marker.classList.add(arrowClass);
+        } 
+    }
+
         // Check compatibility and validate connection
         if (this.inputPort && this.outputPort) {
             if (!this.isValidConnection(port)) {
@@ -1781,6 +1960,57 @@ class GeneticConnectorEEPROM {
             console.log(`Connected ${this.outputPort.component.type} to ${this.inputPort.component.type}`);
         }
     }
+*/
+
+connectToPort(port) {
+    if (this.isInput) {
+        this.outputPort = port;
+    } else {
+        this.inputPort = port;
+    }
+
+    this.dragElement.setAttribute("data-drag", `${port.id}:port`);
+    port.addConnector(this);
+    this.updateHandle(port);
+
+    const sourceComp = this.isInput ? this.outputPort : this.inputPort;
+    if (sourceComp) {
+        const componentType = sourceComp.component.type;
+        const handleClass = this.getHandleClass(componentType);
+        const pathClass = this.getPathClass(componentType);
+        const arrowColor = this.getArrowColor(componentType);
+        
+        // Remove old classes
+        this.inputHandle.classList.remove('handle-promoter', 'handle-terminator', 'handle-rbs', 'handle-cds', 'handle-repressor', 'handle-activator', 'handle-inducer', 'handle-inhibitor', 'handle-default');
+        this.outputHandle.classList.remove('handle-promoter', 'handle-terminator', 'handle-rbs', 'handle-cds', 'handle-repressor', 'handle-activator', 'handle-inducer', 'handle-inhibitor', 'handle-default');
+        this.path.classList.remove('connector-path-promoter', 'connector-path-terminator', 'connector-path-rbs', 'connector-path-cds', 'connector-path-repressor', 'connector-path-activator', 'connector-path-inducer', 'connector-path-inhibitor', 'connector-path-default');
+        
+        // Add new classes
+        this.inputHandle.classList.add(handleClass);
+        this.outputHandle.classList.add(handleClass);
+        this.path.classList.add(pathClass);
+        
+        // UPDATE THE ARROW COLOR
+        const markerId = `arrow-${this.id}`;
+        const marker = document.getElementById(markerId);
+        if (marker) {
+            const arrowPath = marker.querySelector('path');
+            if (arrowPath) {
+                arrowPath.setAttribute('fill', arrowColor);
+            }
+        }
+    }
+
+    // Check compatibility and validate connection
+    if (this.inputPort && this.outputPort) {
+        if (!this.isValidConnection(port)) {
+            this.remove();
+            return;
+        }
+        
+        console.log(`Connected ${this.outputPort.component.type} to ${this.inputPort.component.type}`);
+    }
+}
 
     isValidConnection(targetPort) {
         if (!this.staticPort || !targetPort) return false;
@@ -1817,6 +2047,7 @@ class GeneticConnectorEEPROM {
         return true;
     }
 
+    /*
     remove() {
         if (this.inputPort) {
             this.inputPort.removeConnector(this);
@@ -1843,7 +2074,39 @@ class GeneticConnectorEEPROM {
         
         ConnectorManagerEEPROM.connectorPool.push(this);
     }
+*/
 
+remove() {
+    // Remove the unique marker
+    const markerId = `arrow-${this.id}`;
+    const marker = document.getElementById(markerId);
+    if (marker) marker.remove();
+    
+    if (this.inputPort) {
+        this.inputPort.removeConnector(this);
+    }
+    if (this.outputPort) {
+        this.outputPort.removeConnector(this);
+    }
+
+    this.isSelected = false;
+    this.path.removeAttribute("d");
+    this.pathOutline.removeAttribute("d");
+    this.dragElement.removeAttribute("data-drag");
+    this.staticElement.removeAttribute("data-drag");
+
+    this.staticPort = null;
+    this.inputPort = null;
+    this.outputPort = null;
+    this.dragElement = null;
+    this.staticElement = null;
+
+    if (this.element.parentNode) {
+        this.element.parentNode.removeChild(this.element);
+    }
+    
+    ConnectorManagerEEPROM.connectorPool.push(this);
+}
     onDrag() {
         this.updatePath();
     }
@@ -3932,6 +4195,14 @@ function createPlacedComponent(cell, component) {
     }
     
     console.log(`Added component to state: ${component.type} at (${x}, ${y})`);
+
+    const ports = cell.querySelectorAll('.component-port');
+    const componentColor = colors[component.type] || '#999';
+    
+    ports.forEach(port => {
+        port.style.backgroundColor = componentColor;
+        port.style.borderColor = componentColor;
+    });
 }
 
 // Run simulation with populated board
