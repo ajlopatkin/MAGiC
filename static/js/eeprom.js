@@ -30,6 +30,7 @@ const state = {
     currentStrength: 'norm',
     placedComponents: [],
     componentCounts: {}, // For auto-numbering: promoter_1, promoter_2, etc.
+    pairCounter: 0,
     isDragging: false,
     draggedElement: null,
     // Cellboard format matching backend expectations
@@ -2008,7 +2009,26 @@ connectToPort(port) {
             return;
         }
         
+
         console.log(`Connected ${this.outputPort.component.type} to ${this.inputPort.component.type}`);
+        
+        // Assign shared pair_id to both connected state components
+        if (this.outputPort && this.inputPort) {
+            const outCell = this.outputPort.component.cell;
+            const inCell  = this.inputPort.component.cell;
+            if (outCell && inCell) {
+                state.pairCounter++;
+                const pId = state.pairCounter;
+                const startComp = state.placedComponents.find(
+                    c => c.x === parseInt(outCell.dataset.x) && c.y === parseInt(outCell.dataset.y));
+                const endComp = state.placedComponents.find(
+                    c => c.x === parseInt(inCell.dataset.x)  && c.y === parseInt(inCell.dataset.y));
+                if (startComp) startComp.pair_id = pId;
+                if (endComp)   endComp.pair_id   = pId;
+                console.log(`[PAIR] pair_id=${pId}: ${startComp?.type}(${outCell.dataset.x},${outCell.dataset.y}) ↔ ${endComp?.type}(${inCell.dataset.x},${inCell.dataset.y})`);
+            }
+        }
+   
     }
 }
 
@@ -2094,6 +2114,20 @@ remove() {
     this.pathOutline.removeAttribute("d");
     this.dragElement.removeAttribute("data-drag");
     this.staticElement.removeAttribute("data-drag");
+
+    // Clear pair_ids when connection is broken
+    if (this.outputPort && this.inputPort) {
+        const outCell = this.outputPort.component?.cell;
+        const inCell  = this.inputPort.component?.cell;
+        if (outCell && inCell) {
+            const sc = state.placedComponents.find(
+                c => c.x === parseInt(outCell.dataset.x) && c.y === parseInt(outCell.dataset.y));
+            const ec = state.placedComponents.find(
+                c => c.x === parseInt(inCell.dataset.x)  && c.y === parseInt(inCell.dataset.y));
+            if (sc) delete sc.pair_id;
+            if (ec) delete ec.pair_id;
+        }
+    }
 
     this.staticPort = null;
     this.inputPort = null;
@@ -4238,6 +4272,7 @@ async function runSimulationAfterPopulation() {
             acc[comp.type] = [];
         }
         acc[comp.type].push({
+            pair_id: comp.pair_id != null ? comp.pair_id : null,   
             gene: comp.gene,
             strength: comp.strength,
             x: comp.x,
@@ -4508,6 +4543,44 @@ async function runSimulationFromPlacedComponents() {
         const cellboard = {};
         const componentCounts = {};
         
+        
+
+        // --- Arrow-based pair ID detection ---
+        // Scan live arrow connectors to find which Start↔End are explicitly linked.
+        // Each matched arrow pair gets a shared pair_id that overrides the
+        // drag-out-order sequential numbering for simulation reg_key matching.
+        const instanceToPairId = new Map();
+        let nextPairId = 1;
+        const regulatorStartTypes = new Set([
+            'Repressor Start', 'Activator Start', 'Inducer Start', 'Inhibitor Start'
+        ]);
+        if (state.placedComponents) {
+            state.placedComponents.forEach(comp => {
+                if (regulatorStartTypes.has(comp.type) && comp.componentInstance) {
+                    const outputPorts = comp.componentInstance.outputPorts || [];
+                    outputPorts.forEach(port => {
+                        (port.connectors || []).forEach(conn => {
+                            if (conn.inputPort && conn.inputPort.component) {
+                                const endInstance = conn.inputPort.component;
+                                const endStateComp = state.placedComponents.find(
+                                    c => c.componentInstance === endInstance
+                                );
+                                if (endStateComp) {
+                                    const pairId = nextPairId++;
+                                    instanceToPairId.set(comp.componentInstance, pairId);
+                                    instanceToPairId.set(endInstance, pairId);
+                                    console.log(`[PAIR] Arrow-linked pair #${pairId}: ${comp.type} (${comp.x},${comp.y}) → ${endStateComp.type} (${endStateComp.x},${endStateComp.y})`);
+                                }
+                            }
+                        });
+                    });
+                }
+            });
+        }
+        console.log(`[PAIR] ${instanceToPairId.size / 2} arrow-based regulator pair(s) found.`);
+        // --- End pair ID detection ---
+        
+        
         domComponents.forEach((el, i) => {
             const cell = el.parentElement;
             const x = parseInt(cell.dataset.x);
@@ -4548,7 +4621,8 @@ async function runSimulationFromPlacedComponents() {
                 y: y,
                 type: componentType,
                 strength: el.dataset.strength || 'norm',
-                number: componentCounts[baseType]
+                number: componentCounts[baseType],
+                pair_id: (existingComponent && existingComponent.pair_id != null) ? existingComponent.pair_id : null
             };
             
             
@@ -4638,6 +4712,11 @@ async function runSimulationFromPlacedComponents() {
             requestData.apply_dial = false;
         }
         
+        // Add colormap selection from dropdown
+        const _colormapEl = document.getElementById('colormap-select');
+        requestData.colormap = _colormapEl ? _colormapEl.value : 'cool';
+        
+
         console.log('Sending simulation request:', requestData);
         
         // Send simulation request

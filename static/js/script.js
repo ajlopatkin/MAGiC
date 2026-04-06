@@ -803,7 +803,7 @@ function registerComponentWithConnectorSystem(component, cell) {
     }
 
     // Update cell display
-function updateCellDisplay(x, y, componentType, componentNumber, customName = null, componentData = null) {
+function updateCellDisplay(x, y, componentType, componentNumber, component.customName, component) {
     console.log(`updateCellDisplay called with: x=${x}, y=${y}, componentType=${componentType}, componentNumber=${componentNumber}`);
     
     const cell = document.querySelector(`[data-x="${x}"][data-y="${y}"]`);
@@ -1417,8 +1417,7 @@ function addPortsToCell(cell, componentType) {
     function setupButtons() {
         if (simulateBtn) {
             simulateBtn.addEventListener('click', runSimulation);
-        }
-        
+
         if (clearBtn) {
             clearBtn.addEventListener('click', clearBoard);
         }
@@ -1455,10 +1454,9 @@ function addPortsToCell(cell, componentType) {
                 console.log('✓ Sending to backend: apply_dial=false, all global params=1.0');
             }
             
-            // Read colormap choice (dropdown may not exist on all pages)
             const colormapSelect = document.getElementById('colormap-select');
             const chosenColormap = colormapSelect ? colormapSelect.value : 'cool';
-
+            
             // Prepare simulation data
             const simulationData = {
                 cellboard: state.cellboard,
@@ -1918,6 +1916,7 @@ function addPortsToCell(cell, componentType) {
             alert(message);
         }
     }
+    
 
    function clearBoard() {
         // Clear all placed components
@@ -1999,6 +1998,16 @@ function addPortsToCell(cell, componentType) {
         removeComponent,
         runSimulation,
         clearBoard
+    };
+
+    // Expose a function globally so dial.html can reset component parameters
+    window.resetComponentParameters = function() {
+        for (const [type, components] of Object.entries(state.cellboard)) {
+            components.forEach(comp => {
+                comp.parameters = {};
+            });
+        }
+        console.log('Component parameters cleared from state.cellboard');
     };
     
     // Initialize connector system for regulators

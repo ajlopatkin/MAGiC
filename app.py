@@ -95,7 +95,7 @@ def generate_equation_display(builder, result):
                         # Convert source CDS name to protein display name
                         source_protein = cds_to_protein.get(source, source)
                         latex_source_name = _latex_short_name(source_protein)
-                        reg_descriptions.append(f"Repression by {latex_source_name} (n={n})")
+                        reg_descriptions.append(f"Transcriptional repression by {latex_source_name} (n={n})")
                         latex_terms.append(f"\\frac{{1}}{{1 + \\left(\\frac{{[{latex_source_name}]}}{{K_r}}\\right)^{n}}}")
                         
                 elif 'activation' in reg_type:
@@ -108,7 +108,7 @@ def generate_equation_display(builder, result):
                         # Convert source CDS name to protein display name
                         source_protein = cds_to_protein.get(source, source)
                         latex_source_name = _latex_short_name(source_protein)
-                        reg_descriptions.append(f"Activation by {latex_source_name} (n={n})")
+                        reg_descriptions.append(f"Transcriptional activation by {latex_source_name} (n={n})")
                         latex_terms.append(f"\\frac{{[{latex_source_name}]^{n}}}{{K_a^{n} + [{latex_source_name}]^{n}}}")
             
             # Combine terms
@@ -238,17 +238,27 @@ def simulate():
                 if base_type not in component_counts:
                     component_counts[base_type] = 0
                 component_counts[base_type] += 1
-                
-                # Always use the canonical type-based label for internal tracking
-                # Custom name is stored separately and used only for display
-                
-                comp_name = f"{base_type}_{component_counts[base_type]}"
+
+                # For regulators: use arrow-based pair_id if the frontend provided one.
+                # This makes the simulation pair whichever Start↔End the user connected
+                # with an arrow, rather than whichever was dragged out first.
+                _regulator_base_types = (
+                    'repressor_start', 'repressor_end',
+                    'activator_start', 'activator_end',
+                    'inducer_start', 'inducer_end',
+                    'inhibitor_start', 'inhibitor_end'
+                )
+                _pair_id = comp.get('pair_id') if base_type in _regulator_base_types else None
+                effective_num = int(_pair_id) if _pair_id is not None else component_counts[base_type]
+
+               
+                comp_name = f"{base_type}_{effective_num}"
                 # Capture gene/circuit name if provided
-                
+
                 gene_name = None
                 if 'geneName' in comp and comp['geneName'] and comp['geneName'].strip():
                     gene_name = comp['geneName'].strip()
-                
+
                 placed_components.append({
                     'channel': channel,
                     'mux': mux_letter,
@@ -256,7 +266,7 @@ def simulate():
                     'type': component_type,
                     'strength': strength,
                     'position': channel,  # For sorting
-                    'comp_number': component_counts[base_type],  # Store the number for dial interface
+                    'comp_number': effective_num,  # Uses pair_id for regulators with arrows
                     'base_type': base_type,
                     'customName': comp.get('customName', '').strip() if comp.get('customName') else None,
                     'geneName': gene_name,
@@ -608,6 +618,8 @@ def simulate():
         # Read colormap choice (validated against allowed list)
         _ALLOWED_COLORMAPS = {'cool', 'spring', 'autumn', 'turbo', 'plasma'}
         chosen_colormap = data.get('colormap', 'cool')
+        
+        print(f"[COLORMAP DEBUG] app.py is passing colormap='{chosen_colormap}' to simulate_circuit")
         if chosen_colormap not in _ALLOWED_COLORMAPS:
             chosen_colormap = 'cool'
 

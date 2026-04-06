@@ -310,6 +310,8 @@ class OntologyBuilderUnified:
                 break
         name = circuit_gene_name if circuit_gene_name else f"circuit_{len(self.circuits) + 1}"
         
+        print(f"[CIRCUIT] Finalizing block → name='{name}', components={[c.label for c in comps]}")
+        
         for c in comps:
             c.circuit_name = name
             self.comp_to_circuit[c.id] = name
@@ -533,8 +535,11 @@ class OntologyBuilderUnified:
             starts, ends = rec["starts"], rec["ends"]
 
             any_outside = any(comp.is_outside_cell for comp in starts + ends) if (starts and ends) else False
-            if rec["type"] in ("inducer", "inhibitor") and any_outside:
+            start_in_no_circuit = any(comp.circuit_name is None for comp in starts) if starts else False
+            
+            if rec["type"] in ("inducer", "inhibitor") and (any_outside or start_in_no_circuit):
                 rec["is_floating"] = True
+
                 print(f"🌍 EXTERNAL {rec['type'].upper()} DETECTED: {key}")
                 print(f"   Positions: starts={[(c.grid_x, c.grid_y) for c in starts]}, ends={[(c.grid_x, c.grid_y) for c in ends]}")
     
@@ -583,15 +588,14 @@ class OntologyBuilderUnified:
                     # Floating regulator (external/constant concentration)
                         kind = type_map.get(rec["type"], "transcriptional_regulation")
                         print(f"   Regulation kind: {kind} (floating/external)")
-                    elif start.circuit_name != end.circuit_name:
-                    # Cross-circuit regulation
+                    elif source_name not in affected:
+                    # Cross-circuit: source protein is NOT in the target circuit's downstream CDS
                         kind = type_map.get(rec["type"], "transcriptional_regulation")
-                        print(f"   Regulation kind: {kind} (cross-circuit)")
+                        print(f"   Regulation kind: {kind} (cross-circuit: {source_name} → {affected})")
                     else:
-                    # Same-circuit regulation (self-regulation)
+                        # Self-circuit: source protein IS in the same circuit as the target
                         kind = self_map.get(rec["type"])
-                        print(f"   Regulation kind: {kind} (self-regulation)")
-
+                        print(f"   Regulation kind: {kind} (self-regulation: {source_name} in {affected})")
 
                     # Use consistent default parameters unless strength is specified
                     # Check if this is a "strong" or "weak" regulation based on component strength
@@ -935,7 +939,7 @@ def simulate_circuit(builder: OntologyBuilderUnified, colormap: str = 'cool') ->
                     
                     pr = reg["parameters"]
                     # Use higher Hill coefficient for sharper response (better for oscillations)
-                    n = pr.get("n", 4 if typ in ("self_repression", "self_activation") else 2)
+                    n = pr.get("n", 4 if typ in ("repression", "activation") else 2)
                     
                     # Resolve the value of the regulator
                     src_name = reg["source"]
@@ -994,18 +998,19 @@ def simulate_circuit(builder: OntologyBuilderUnified, colormap: str = 'cool') ->
             for reg in cell["regulations"]
         )
         
-        if len(p0) >= 3 and np.allclose(p0, 0.0) and has_regulatory_feedback:
-            # Apply asymmetry breaking ONLY for repressilator-type systems with regulatory feedback
-            asymmetry_factors = [1.0, 0.1, 0.05]  # First protein starts higher
-            for i in range(len(p0)):
-                if i < len(asymmetry_factors):
-                    p0[i] = asymmetry_factors[i]
-                else:
-                    p0[i] = 0.01  # Small non-zero value for additional proteins
+        if len(p0) >= 3 and has_regulatory_feedback:
+            # Break symmetry whenever all proteins start at the same concentration.
+            # Symmetric ICs make a repressilator converge to a fixed point regardless of n.
+            if np.std(p0) < 1e-6 * (np.max(np.abs(p0)) + 1e-10):
+                base = p0[0] if p0[0] > 1e-9 else 0.01
+                asymmetry_factors = [1.0, 0.1, 0.05]
+                for i in range(len(p0)):
+                    p0[i] = asymmetry_factors[i % len(asymmetry_factors)] * base
         elif len(p0) >= 1 and np.allclose(p0, 0.0):
-            # For constitutive circuits, use equal small starting concentrations for all proteins  
             for i in range(len(p0)):
-                p0[i] = 0.01  # Equal starting concentration for constitutive circuits
+                p0[i] = 0.01
+             
+   
         t = np.linspace(0, 24, 200)  # 0-24 hours as requested
         
         # Solve ODE
@@ -1029,10 +1034,16 @@ def simulate_circuit(builder: OntologyBuilderUnified, colormap: str = 'cool') ->
             'plasma': (0.18, 0.78),  # skip darkest indigo-blue and palest yellow
         }
         _safe_colormap = colormap if colormap in _COLORMAP_RANGES else 'cool'
+       
+        print(f"[COLORMAP DEBUG] circuit_model.py received colormap='{colormap}', using _safe_colormap='{_safe_colormap}'")
+
         _lo, _hi = _COLORMAP_RANGES[_safe_colormap]
-        import matplotlib.cm as cm
-        _cmap = cm.get_cmap(_safe_colormap)
+        
+        import matplotlib as _mpl
+        _cmap = _mpl.colormaps.get_cmap(_safe_colormap)
+        
         n_proteins = len(cds_list)
+        
         if n_proteins == 1:
             _positions = [(_lo + _hi) / 2]
         else:
@@ -1081,6 +1092,7 @@ def simulate_circuit(builder: OntologyBuilderUnified, colormap: str = 'cool') ->
 
         # ── Axis labels, title, grid, legend ─────────────────────────────────────
         ax.set_xlabel("Time (hours)", fontsize=10)
+        ax.set_xticks([0, 4, 8, 12, 16, 20, 24]) 
         ax.set_ylabel("Concentration (μM)", fontsize=10)
         ax.set_title("Genetic Circuit Simulation", fontsize=12, fontweight='bold', pad=12)
         ax.grid(True, color=GRID_COLOR, linewidth=0.7, linestyle='--', alpha=0.9)
