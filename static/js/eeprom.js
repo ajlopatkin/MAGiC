@@ -5482,3 +5482,68 @@ document.addEventListener('DOMContentLoaded', function() {
         initGlobalMode();
     }, 500);
 });
+
+// ===== FULL SCREEN DETECTION - INSTANT =====
+function checkFullScreen() {
+    const isFullScreen = document.fullscreenElement || 
+                         document.webkitFullscreenElement || 
+                         document.mozFullScreenElement || 
+                         document.msFullscreenElement;
+    
+    const warning = document.getElementById('fullscreen-warning');
+    
+    if (!isFullScreen && warning) {
+        warning.style.display = 'flex';
+    } else if (warning) {
+        warning.style.display = 'none';
+    }
+}
+
+function enterFullScreen() {
+    const elem = document.documentElement;
+    if (elem.requestFullscreen) {
+        elem.requestFullscreen();
+    } else if (elem.webkitRequestFullscreen) {
+        elem.webkitRequestFullscreen();
+    } else if (elem.mozRequestFullScreen) {
+        elem.mozRequestFullScreen();
+    } else if (elem.msRequestFullscreen) {
+        elem.msRequestFullscreen();
+    }
+}
+
+function initFullScreenDetection() {
+    // Listen for full screen change events - THIS FIRES INSTANTLY
+    document.addEventListener('fullscreenchange', checkFullScreen);
+    document.addEventListener('webkitfullscreenchange', checkFullScreen);
+    document.addEventListener('mozfullscreenchange', checkFullScreen);
+    document.addEventListener('MSFullscreenChange', checkFullScreen);
+    
+    // Set up button listeners
+    const enterBtn = document.getElementById('fullscreen-enter-btn');
+    const dismissBtn = document.getElementById('fullscreen-dismiss-btn');
+    
+    if (enterBtn) {
+        enterBtn.addEventListener('click', function() {
+            enterFullScreen();
+        });
+    }
+    
+    if (dismissBtn) {
+        dismissBtn.addEventListener('click', function() {
+            const warning = document.getElementById('fullscreen-warning');
+            if (warning) warning.style.display = 'none';
+        });
+    }
+    
+    // Initial check after page loads
+    setTimeout(checkFullScreen, 500);
+}
+
+// Initialize when DOM is ready (only on board mode)
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.location.pathname.includes('/eeprom')) {
+        initFullScreenDetection();
+    }
+});
+

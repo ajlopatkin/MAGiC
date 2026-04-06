@@ -868,6 +868,88 @@
         }
 
     </script>
+        <!-- Full Screen Warning Modal -->
+    <div id="fullscreen-warning" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 999999; align-items: center; justify-content: center;">
+        <div style="background: rgba(32,44,45,0.95); border: 2px solid rgba(178,243,95,0.5); border-radius: 16px; padding: 30px; max-width: 500px; text-align: center; backdrop-filter: blur(10px);">
+            <i class="fas fa-expand" style="font-size: 48px; color: rgba(178,243,95,1); margin-bottom: 20px; display: block;"></i>
+            <h2 style="color: white; margin-bottom: 15px;">Full Screen Recommended</h2>
+            <p style="color: #ccc; margin-bottom: 20px;">For the best experience with the Cell Board, please enter full screen mode.</p>
+            <button id="fullscreen-enter-btn" class="btn btn-primary" style="margin-right: 10px;">
+                <i class="fas fa-expand me-2"></i>Enter Full Screen
+            </button>
+            <button id="fullscreen-dismiss-btn" class="btn btn-secondary">
+                <i class="fas fa-times me-2"></i>Dismiss
+            </button>
+        </div>
+    </div>
 
+    <script>
+        // ===== FULL SCREEN DETECTION - INSTANT =====
+        (function() {
+            function checkFullScreen() {
+                const isFullScreen = document.fullscreenElement || 
+                                     document.webkitFullscreenElement || 
+                                     document.mozFullScreenElement || 
+                                     document.msFullscreenElement;
+                
+                const warning = document.getElementById('fullscreen-warning');
+                
+                if (!isFullScreen && warning) {
+                    warning.style.display = 'flex';
+                } else if (warning) {
+                    warning.style.display = 'none';
+                }
+            }
+
+            function enterFullScreen() {
+                const elem = document.documentElement;
+                if (elem.requestFullscreen) {
+                    elem.requestFullscreen();
+                } else if (elem.webkitRequestFullscreen) {
+                    elem.webkitRequestFullscreen();
+                } else if (elem.mozRequestFullScreen) {
+                    elem.mozRequestFullScreen();
+                } else if (elem.msRequestFullscreen) {
+                    elem.msRequestFullscreen();
+                }
+            }
+
+            function initFullScreenDetection() {
+                // Listen for full screen change events - fires instantly
+                document.addEventListener('fullscreenchange', checkFullScreen);
+                document.addEventListener('webkitfullscreenchange', checkFullScreen);
+                document.addEventListener('mozfullscreenchange', checkFullScreen);
+                document.addEventListener('MSFullscreenChange', checkFullScreen);
+                
+                // Set up button listeners
+                const enterBtn = document.getElementById('fullscreen-enter-btn');
+                const dismissBtn = document.getElementById('fullscreen-dismiss-btn');
+                
+                if (enterBtn) {
+                    enterBtn.addEventListener('click', enterFullScreen);
+                }
+                
+                if (dismissBtn) {
+                    dismissBtn.addEventListener('click', function() {
+                        const warning = document.getElementById('fullscreen-warning');
+                        if (warning) warning.style.display = 'none';
+                    });
+                }
+                
+                // Initial check after page loads
+                setTimeout(checkFullScreen, 500);
+            }
+
+            // Run when DOM is ready
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initFullScreenDetection);
+            } else {
+                initFullScreenDetection();
+            }
+        })();
+    </script>
+
+</body>
+</html>
 </body>
 </html>
