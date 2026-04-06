@@ -2546,6 +2546,8 @@ async function connectToPort() {
     const originalButtonText = btnConnect.innerHTML;
     btnConnect.disabled = true;
     btnConnect.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Connecting...';
+    btnConnect.classList.add('btn-success'); 
+    btnConnect.classList.remove('btn-primary');
     // Keep btn-primary (light green)
 
     let selectedPort = null;
@@ -3114,6 +3116,7 @@ async function readBoardConfiguration() {
 }
 
 // Create analyze button
+/*
 function createAnalyzeButton() {
     const btn = document.createElement('button');
     btn.id = 'btn-analyze-log';
@@ -3126,8 +3129,10 @@ function createAnalyzeButton() {
     
     return btn;
 }
+*/
 
 // Create debug hex button
+/*
 function createDebugHexButton() {
     const btn = document.createElement('button');
     btn.id = 'btn-debug-hex';
@@ -3140,6 +3145,7 @@ function createDebugHexButton() {
     
     return btn;
 }
+*/
 
 // Show raw hex data for debugging
 function showRawHexData(channelData) {
@@ -3249,6 +3255,7 @@ async function parseLogWithBackend() {
             }
             
             // Add debug button to show raw hex data
+            /*
             const debugBtn = document.getElementById('btn-debug-hex') || createDebugHexButton();
             debugBtn.style.display = 'inline-block';
             debugBtn.onclick = () => showRawHexData(result.channel_data);
@@ -3257,7 +3264,8 @@ async function parseLogWithBackend() {
             const analyzeBtn = document.getElementById('btn-analyze-log') || createAnalyzeButton();
             analyzeBtn.style.display = 'inline-block';
             analyzeBtn.onclick = () => analyzeScanFailure();
-            
+            */
+
             // Populate board from the backend-parsed cellboard data
             if (result.cellboard && Object.keys(result.cellboard).length > 0) {
                 populateBoardFromCellboard(result.cellboard);
@@ -3276,7 +3284,7 @@ async function parseLogWithBackend() {
                 
                 // Run simulation with the detected circuit
                 logLine('\nRunning simulation with detected circuit...');
-                await runSimulationFromCellboard(result.cellboard);
+               /* await runSimulationFromCellboard(result.cellboard);*/
             } else {
                 logLine('');
                 logLine('=== Board Scan Complete ===');
@@ -5279,7 +5287,7 @@ async function runSimulationFromPlacedComponents() {
         // Re-enable button
         if (simulateBtn) {
             simulateBtn.disabled = false;
-            simulateBtn.innerHTML = '<i class="fas fa-play me-2"></i>Run Virtual Simulation';
+            simulateBtn.innerHTML = '<i class="fas fa-play me-2"></i>Run Simulation';
         }
     }
 }
