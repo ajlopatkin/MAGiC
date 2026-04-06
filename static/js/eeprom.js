@@ -2494,7 +2494,6 @@ async function requestAndListPorts() {
     }
 }
 
-// Connect to selected COM port
 async function connectToPort() {
     // Prevent concurrent operations
     if (isConnecting) {
@@ -2509,26 +2508,30 @@ async function connectToPort() {
     
     isConnecting = true;
 
+    // ===== SHOW LOADING SPINNER - LIGHT GREEN =====
+    const originalButtonText = btnConnect.innerHTML;
+    btnConnect.disabled = true;
+    btnConnect.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Connecting...';
+    // Keep btn-primary (light green)
+
     let selectedPort = null;
 
     if (!comPortSelect.options.length || comPortSelect.selectedIndex === 0) {
-        // No port selected, request one
         try {
             logLine('Requesting port access...');
             selectedPort = await navigator.serial.requestPort();
             logLine('Port selected via dialog.');
-            
-            // Add the new port to the dropdown
             await listPorts();
-            
         } catch (err) {
             console.error("No port selected:", err);
             logLine('Port selection cancelled or failed.');
-            isConnecting = false;  // CRITICAL FIX: Reset connection flag
+            
+            btnConnect.disabled = false;
+            btnConnect.innerHTML = originalButtonText;
+            isConnecting = false;
             return;
         }
     } else {
-        // Use selected port
         const selectedOption = comPortSelect.options[comPortSelect.selectedIndex];
         selectedPort = selectedOption.port;
         logLine(`Attempting to connect to selected port...`);
@@ -2557,7 +2560,7 @@ async function connectToPort() {
         
         // Allow Arduino to reset (critical for stable connection)
         logLine('⏳ Waiting for Arduino to initialize (2 seconds)...');
-        await new Promise(resolve => setTimeout(resolve, 2000)); // may need to add longer time
+        await new Promise(resolve => setTimeout(resolve, 2000));
         
         // Setup readers and writers with proper stream tracking
         setupSerialStreams();
@@ -2571,32 +2574,30 @@ async function connectToPort() {
         logLine('🔍 Testing device responsiveness...');
         await performCLIHandshake();
         
-        // Skip I2C init - firmware appears to work without it (like August)
         logLine('🔧 Firmware ready for EEPROM operations');
         
         logLine('✅ Device initialization completed.');
 
         logLine('🎉 Connection established successfully!');
-        logLine('You can now click "Read Circuit from Board" to scan for components.');
-        await readBoardConfigurationOnly();
-        
-        // Update UI
-        btnConnect.textContent = 'Connected';
-        btnConnect.disabled = true;
-        btnConnect.classList.remove('btn-primary');
-        btnConnect.classList.add('btn-success');
         
         if (btnGetBoard) {
             btnGetBoard.disabled = false;
         }
-
-    
+        
+        // Run auto-scan after connection
+        logLine('Auto-scanning board...');
+        await readBoardConfigurationOnly();
+        
+        // ===== AFTER SCAN COMPLETE - CHANGE TO DARKER GREEN =====
+        btnConnect.innerHTML = '<i class="fas fa-check me-2"></i>Connected';
+        btnConnect.disabled = false;
+        btnConnect.classList.remove('btn-primary');
+        btnConnect.classList.add('btn-success');  // ← This makes it darker green
 
     } catch (err) {
         console.error("Error opening port:", err);
         logLine(`❌ Error opening port: ${err.message}`);
         
-        // Specific error handling
         if (err.message.includes('Failed to open serial port')) {
             logLine('💡 Try: 1) Check if another program is using the port 2) Unplug and reconnect the Arduino 3) Select a different port');
         } else if (err.message.includes('not found')) {
@@ -2604,11 +2605,11 @@ async function connectToPort() {
         }
         
         port = null;
-        isConnecting = false;  // CRITICAL FIX: Reset connection flag on error
+        isConnecting = false;
         
-        // Reset UI
-        btnConnect.textContent = 'Connect';
+        // ===== ON ERROR - BACK TO LIGHT GREEN =====
         btnConnect.disabled = false;
+        btnConnect.innerHTML = '<i class="fas fa-plug me-2"></i>Connect';
         btnConnect.classList.remove('btn-success');
         btnConnect.classList.add('btn-primary');
         
