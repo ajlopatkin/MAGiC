@@ -830,8 +830,19 @@
                 }
             });
             
+           
             console.log('Parameters reset to default values');
-        }
+
+            // Clear component parameters directly from eeprom.js state
+            if (typeof state !== 'undefined' && state.cellboard) {
+                for (const [type, components] of Object.entries(state.cellboard)) {
+                    components.forEach(comp => {
+                        comp.parameters = {};
+                    });
+                }
+                console.log('Component parameters cleared from state.cellboard');
+            }
+}
 
         function exportScript() {
             const btn = document.getElementById('export-script-btn');
