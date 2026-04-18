@@ -50,6 +50,38 @@ const state = {
     }
 };
 
+function showConfirm(message) {
+    return new Promise(resolve => {
+        const overlay = document.getElementById('custom-modal-overlay');
+        document.getElementById('custom-modal-message').innerHTML = message.replace(/\n/g, '<br>');
+        // Hide cancel button for alert-only use; show it for confirms
+        document.getElementById('custom-modal-cancel').style.display = 'inline-block';
+        overlay.style.display = 'flex';
+
+        function cleanup(result) {
+            overlay.style.display = 'none';
+            document.getElementById('custom-modal-ok').onclick = null;
+            document.getElementById('custom-modal-cancel').onclick = null;
+            resolve(result);
+        }
+        document.getElementById('custom-modal-ok').onclick = () => cleanup(true);
+        document.getElementById('custom-modal-cancel').onclick = () => cleanup(false);
+    });
+}
+
+function showAlert(message) {
+    return new Promise(resolve => {
+        const overlay = document.getElementById('custom-modal-overlay');
+        document.getElementById('custom-modal-message').innerHTML = message.replace(/\n/g, '<br>');
+        document.getElementById('custom-modal-cancel').style.display = 'none';
+        overlay.style.display = 'flex';
+        document.getElementById('custom-modal-ok').onclick = () => {
+            overlay.style.display = 'none';
+            resolve();
+        };
+    });
+}
+
 // ===== DOM INITIALIZATION =====
 // Single DOMContentLoaded handler to prevent conflicts
 let isInitialized = false;
@@ -234,7 +266,7 @@ async function runSimulation() {
     // Check if there are components on the board
     const placedComponents = document.querySelectorAll('.placed-component');
     if (placedComponents.length === 0) {
-        alert('Please place some components on the board first!');
+        await showAlert('Please place some components on the board first!');
         return;
     }
     
@@ -243,11 +275,10 @@ async function runSimulation() {
 }
 
 // Clear board function
-function clearBoard() {
+async function clearBoard() {
     console.log('=== CLEAR BOARD CALLED ===');
     
-    if (confirm('Are you sure you want to clear the design board? This will remove all placed components.')) {
-
+    if (await showConfirm('Are you sure you want to clear the design board? This will remove all placed components.')) {
         // Clear connectors 
         if (typeof ConnectorManagerEEPROM !== 'undefined') {
             ConnectorManagerEEPROM.clearAll();
@@ -261,9 +292,11 @@ function clearBoard() {
         });
         
         // Clear filled state from cells
-        const cells = document.querySelectorAll('.cell.filled');
+        const cells = document.querySelectorAll('.cell');
         cells.forEach(cell => {
             cell.classList.remove('filled');
+            cell.classList.remove('has-component');
+            cell.innerHTML = '';
         });
         
         // Reset state
@@ -271,7 +304,8 @@ function clearBoard() {
         Object.keys(state.cellboard).forEach(key => {
             state.cellboard[key] = [];
         });
-        
+        state.componentCounts = {};
+
         // Clear any selection
         clearComponentSelection();
         
@@ -288,12 +322,23 @@ function clearBoard() {
             errorDisplay.textContent = '';
         }
         
+        // Remove stale dynamic parameter sections from sidebar
+        const dialAccordion = document.querySelector('.dial-accordion');
+        if (dialAccordion) {
+            dialAccordion.querySelectorAll('[id^="section_"]').forEach(section => section.remove());
+        }
+
+        // ADD before: console.log('Board cleared successfully');
+        state.componentCounts = {};
+        document.querySelectorAll('.cell.has-component').forEach(cell => cell.classList.remove('has-component'));
+        document.querySelectorAll('[id^="section_"]').forEach(section => section.remove());
+
         console.log('Board cleared successfully');
     }
 }
 
 // Global reset parameters function (accessible by onclick)
-window.resetParameters = function() {
+window.resetParameters = async function() {
     console.log('=== RESET PARAMETERS CALLED ===');
     
     // Define default parameter values
@@ -332,7 +377,7 @@ window.resetParameters = function() {
     });
     
     console.log('Parameters reset to defaults');
-    alert('All parameters have been reset to their default values.');
+    await showAlert('All parameters have been reset to their default values.');
 };
 
 // Setup global click handler to clear selection
@@ -919,7 +964,8 @@ function getComponentParameters(componentType, componentNumber) {
                 min: ranges.strength?.[0] || 0.1,
                 max: ranges.strength?.[1] || 5.0,
                 step: 0.1,
-                defaultValue: defaults.promoter_strength || 5.0
+                defaultValue: defaults.promoter_strength || 5.0,
+                title: 'Transcription rate from this promoter (arbitrary units)'
             }
         ],
         'RBS': [
@@ -929,7 +975,8 @@ function getComponentParameters(componentType, componentNumber) {
                 min: ranges.efficiency?.[0] || 0.1,
                 max: ranges.efficiency?.[1] || 2.0,
                 step: 0.1,
-                defaultValue: defaults.rbs_efficiency || 1.0
+                defaultValue: defaults.rbs_efficiency || 1.0,
+                title: 'Translational efficiency — scales protein production rate'
             }
         ],
         'CDS': [
@@ -939,7 +986,8 @@ function getComponentParameters(componentType, componentNumber) {
                 min: ranges.translation_rate?.[0] || 1.0,
                 max: ranges.translation_rate?.[1] || 20.0,
                 step: 0.5,
-                defaultValue: defaults.cds_translation_rate || 7.0
+                defaultValue: defaults.cds_translation_rate || 7.0,
+                title: 'Rate of protein production from this coding sequence'
             },
             {
                 id: `cds${num}_degradation_rate`,
@@ -947,7 +995,8 @@ function getComponentParameters(componentType, componentNumber) {
                 min: ranges.degradation_rate?.[0] || 0.01,
                 max: ranges.degradation_rate?.[1] || 1.0,
                 step: 0.01,
-                defaultValue: defaults.cds_degradation_rate || 1.0
+                defaultValue: defaults.cds_degradation_rate || 1.0,
+                title: 'Rate at which this protein is broken down (per hour)'
             },
             {
                 id: `protein${num}_initial_conc`,
@@ -966,27 +1015,28 @@ function getComponentParameters(componentType, componentNumber) {
                 min: 0.1,
                 max: 1.0,
                 step: 0.01,
-                defaultValue: defaults.terminator_efficiency || 0.99
+                defaultValue: defaults.terminator_efficiency || 0.99,
+                title: 'Fraction of transcription terminated — 0.99 = nearly complete stop'
             }
         ],
         'Repressor Start': [
             {
-                id: `repressor${num}_constant`,
+                id: `repressor${num}_Kr`,
                 label: 'Repression Constant (Kr):',
                 min: 0.01,
                 max: 2.0,
                 step: 0.01,
                 defaultValue: 0.35,
-                title: 'How strongly the repressor binds to the promoter'
+                title: 'Lower Kr = stronger repression'
             },
             {
-                id: `repressor${num}_cooperativity`,
+                id: `repressor${num}_n`,
                 label: 'Cooperativity (n):',
                 min: 1,
                 max: 6,
                 step: 1,
                 defaultValue: 2,
-                title: 'Hill coefficient - higher values = sharper response'
+                title: 'Hill coefficient: higher values = sharper response'
             },
             {
                 id: `repressor${num}_concentration`,
@@ -1000,16 +1050,16 @@ function getComponentParameters(componentType, componentNumber) {
         ],
         'Repressor End': [
             {
-                id: `repressor${num}_constant`,
+                id: `repressor${num}_Kr`,
                 label: 'Repression Constant (Kr):',
                 min: 0.01,
                 max: 2.0,
                 step: 0.01,
                 defaultValue: 0.35,
-                title: 'How strongly the repressor binds to the promoter'
+                title: 'Lower Kr = stronger repression'
             },
             {
-                id: `repressor${num}_cooperativity`,
+                id: `repressor${num}_n`,
                 label: 'Cooperativity (n):',
                 min: 1,
                 max: 6,
@@ -1029,22 +1079,22 @@ function getComponentParameters(componentType, componentNumber) {
         ],
         'Activator Start': [
             {
-                id: `activator${num}_constant`,
+                id: `activator${num}_Ka`,
                 label: 'Activation Constant (Ka):',
                 min: 0.01,
                 max: 2.0,
                 step: 0.01,
                 defaultValue: 0.4,
-                title: 'How strongly the activator enhances transcription'
+                title: 'Lower Ka = stronger activation'
             },
             {
-                id: `activator${num}_cooperativity`,
+                id: `activator${num}_n`,
                 label: 'Cooperativity (n):',
                 min: 1,
                 max: 6,
                 step: 1,
                 defaultValue: 2,
-                title: 'Hill coefficient - higher values = sharper response'
+                title: 'Hill coefficient: higher values = sharper response'
             },
             {
                 id: `activator${num}_concentration`,
@@ -1058,22 +1108,22 @@ function getComponentParameters(componentType, componentNumber) {
         ],
         'Activator End': [
             {
-                id: `activator${num}_constant`,
+                id: `activator${num}_Ka`,
                 label: 'Activation Constant (Ka):',
                 min: 0.01,
                 max: 2.0,
                 step: 0.01,
                 defaultValue: 0.4,
-                title: 'How strongly the activator enhances transcription'
+                title: 'Lower Ka = stronger activation'
             },
             {
-                id: `activator${num}_cooperativity`,
+                id: `activator${num}_n`,
                 label: 'Cooperativity (n):',
                 min: 1,
                 max: 6,
                 step: 1,
                 defaultValue: 2,
-                title: 'Hill coefficient - higher values = sharper response'
+                title: 'Hill coefficient: higher values = sharper response'
             },
             {
                 id: `activator${num}_concentration`,
@@ -1087,16 +1137,16 @@ function getComponentParameters(componentType, componentNumber) {
         ],
         'Inducer Start': [
             {
-                id: `inducer${num}_strength`,
+                id: `inducer${num}_Ka`,
                 label: 'Inducer Strength:',
                 min: 0.01,
                 max: 2.0,
                 step: 0.01,
                 defaultValue: 0.5,
-                title: 'Strength of inducer effect (placeholder for backend)'
+                title: 'Binding constant (Ka): lower Ka = induced at lower concentrations'
             },
             {
-                id: `inducer${num}_cooperativity`,
+                id: `inducer${num}_n`,
                 label: 'Cooperativity (n):',
                 min: 1,
                 max: 6,
@@ -1111,21 +1161,21 @@ function getComponentParameters(componentType, componentNumber) {
                 max: 5,
                 step: 0.1,
                 defaultValue: 1.0,
-                title: 'Starting inducer concentration (µM)'
+                title: 'Concentration of external inducer'
             }
         ],
         'Inducer End': [
             {
-                id: `inducer${num}_strength`,
+                id: `inducer${num}_Ka`,
                 label: 'Inducer Strength:',
                 min: 0.01,
                 max: 2.0,
                 step: 0.01,
                 defaultValue: 0.5,
-                title: 'Strength of inducer effect (placeholder for backend)'
+                title: 'Binding constant (Ka): lower Ka = induced at lower concentrations'
             },
             {
-                id: `inducer${num}_cooperativity`,
+                id: `inducer${num}_n`,
                 label: 'Cooperativity (n):',
                 min: 1,
                 max: 6,
@@ -1145,16 +1195,16 @@ function getComponentParameters(componentType, componentNumber) {
         ],
         'Inhibitor Start': [
             {
-                id: `inhibitor${num}_strength`,
+                id: `inhibitor${num}_Kr`,
                 label: 'Inhibitor Strength:',
                 min: 0.01,
                 max: 2.0,
                 step: 0.01,
                 defaultValue: 0.5,
-                title: 'Strength of inhibitor effect (placeholder for backend)'
+                title: 'Binding constant (Kr): lower Kr = inhibited at lower concentrations'
             },
             {
-                id: `inhibitor${num}_cooperativity`,
+                id: `inhibitor${num}_n`,
                 label: 'Cooperativity (n):',
                 min: 1,
                 max: 6,
@@ -1174,16 +1224,16 @@ function getComponentParameters(componentType, componentNumber) {
         ],
         'Inhibitor End': [
             {
-                id: `inhibitor${num}_strength`,
+                id: `inhibitor${num}_Kr`,
                 label: 'Inhibitor Strength:',
                 min: 0.01,
                 max: 2.0,
                 step: 0.01,
                 defaultValue: 0.5,
-                title: 'Strength of inhibitor effect (placeholder for backend)'
+                title: 'Binding constant (Kr): lower Kr = inhibited at lower concentrations'
             },
             {
-                id: `inhibitor${num}_cooperativity`,
+                id: `inhibitor${num}_n`,
                 label: 'Cooperativity (n):',
                 min: 1,
                 max: 6,
@@ -1544,14 +1594,14 @@ async function init() {
         // Enable buttons but show error on click
         if (btnConnect) {
             btnConnect.disabled = false;
-            btnConnect.addEventListener('click', () => {
-                alert(`Web Serial API is not available.\n\nBrowser: ${browserName}\nVersion: ${navigator.userAgent}\n\nPossible causes:\n- Not using HTTPS or localhost\n- Browser security settings\n- Running in iframe\n- macOS permissions issue`);
+            btnConnect.addEventListener('click', async () => {
+                await showAlert(`Web Serial API is not available.\n\nBrowser: ${browserName}\nVersion: ${navigator.userAgent}\n\nPossible causes:\n- Not using HTTPS or localhost\n- Browser security settings\n- Running in iframe\n- macOS permissions issue`);
             });
         }
         if (btnRefreshPorts) {
             btnRefreshPorts.disabled = false;
-            btnRefreshPorts.addEventListener('click', () => {
-                alert(`Web Serial API is not available.\n\nPlease use Google Chrome 89+ or Microsoft Edge 89+`);
+            btnRefreshPorts.addEventListener('click', async () => {
+                await showAlert(`Web Serial API is not available.\n\nPlease use Google Chrome 89+ or Microsoft Edge 89+`);
             });
         }
         
@@ -3016,7 +3066,7 @@ async function initializeI2CBus() {
 // Read complete board configuration
 async function readBoardConfiguration() {
     if (!port) {
-        alert("Please connect to a COM port first.");
+        await showAlert("Please connect to a COM port first.");
         return;
     }
 
@@ -3820,7 +3870,7 @@ async function runSimulationFromCellboard(cellboard) {
 // Diagnose individual EEPROMs to see what data they contain
 async function diagnoseBoardEEPROMs() {
     if (!port) {
-        alert("Please connect to a COM port first.");
+        await showAlert("Please connect to a COM port first.");
         return;
     }
 

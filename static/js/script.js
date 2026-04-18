@@ -375,7 +375,8 @@ function setupCells() {
                     min: ranges.strength?.[0] || 0.1,
                     max: ranges.strength?.[1] || 5.0,
                     step: 0.1,
-                    defaultValue: defaults.promoter_strength || 5.0
+                    defaultValue: defaults.promoter_strength || 5.0,
+                    title: 'Transcription rate from this promoter (arbitrary units)'
                 }
             ],
             'RBS': [
@@ -385,7 +386,8 @@ function setupCells() {
                     min: ranges.efficiency?.[0] || 0.1,
                     max: ranges.efficiency?.[1] || 2.0,
                     step: 0.1,
-                    defaultValue: defaults.rbs_efficiency || 1.0
+                    defaultValue: defaults.rbs_efficiency || 1.0,
+                    title: 'Translational efficiency — scales protein production rate'
                 }
             ],
             'CDS': [
@@ -395,7 +397,8 @@ function setupCells() {
                     min: ranges.translation_rate?.[0] || 1.0,
                     max: ranges.translation_rate?.[1] || 20.0,
                     step: 0.5,
-                    defaultValue: defaults.cds_translation_rate || 7.0
+                    defaultValue: defaults.cds_translation_rate || 7.0,
+                    title: 'Rate of protein production from this coding sequence'
                 },
                 {
                     id: `cds${num}_degradation_rate`,
@@ -403,7 +406,8 @@ function setupCells() {
                     min: ranges.degradation_rate?.[0] || 0.01,
                     max: ranges.degradation_rate?.[1] || 1.0,
                     step: 0.01,
-                    defaultValue: defaults.cds_degradation_rate || 1.0
+                    defaultValue: defaults.cds_degradation_rate || 1.0,
+                    title: 'Rate at which this protein is broken down (per hour)'
                 },
                 {
                     id: `protein${num}_initial_conc`,
@@ -422,7 +426,8 @@ function setupCells() {
                     min: 0.1,
                     max: 1.0,
                     step: 0.01,
-                    defaultValue: defaults.terminator_efficiency || 0.99
+                    defaultValue: defaults.terminator_efficiency || 0.99,
+                    title: 'Fraction of transcription terminated: 0.99 = nearly complete stop'
                 }
             ],
             'Repressor Start': [
@@ -442,7 +447,7 @@ function setupCells() {
                     max: 6,
                     step: 1,
                     defaultValue: defaults.repressor_n || 2,
-                    title: 'Hill coefficient - higher = sharper response'
+                    title: 'Hill coefficient: higher = sharper response'
                 },
                 {
                     id: `repressor${num}_concentration`,
@@ -451,7 +456,7 @@ function setupCells() {
                     max: 5.0,
                     step: 0.1,
                     defaultValue: 1.0,
-                    title: 'For floating repressors'
+                    title: 'Starting repressor protein concentration (µM)'
                 }
             ],
             'Repressor End': [
@@ -471,7 +476,7 @@ function setupCells() {
                     max: 6,
                     step: 1,
                     defaultValue: 2,
-                    title: 'Hill coefficient - higher = sharper response'
+                    title: 'Hill coefficient: higher = sharper response'
                 },
                 {
                     id: `repressor${num}_concentration`,
@@ -480,7 +485,7 @@ function setupCells() {
                     max: 5.0,
                     step: 0.1,
                     defaultValue: 1.0,
-                    title: 'For floating repressors'
+                    title: 'Starting repressor protein concentration (µM)'
                 }
             ],
             'Activator Start': [
@@ -500,7 +505,7 @@ function setupCells() {
                     max: 6,
                     step: 1,
                     defaultValue: 2,
-                    title: 'Hill coefficient - higher = sharper response'
+                    title: 'Hill coefficient: higher = sharper response'
                 },
                 {
                     id: `activator${num}_concentration`,
@@ -509,7 +514,7 @@ function setupCells() {
                     max: 5.0,
                     step: 0.1,
                     defaultValue: 1.0,
-                    title: 'For floating activators'
+                    title: 'Starting activator protein concentration (µM)'
                 }
             ],
             'Activator End': [
@@ -529,7 +534,7 @@ function setupCells() {
                     max: 6,
                     step: 1,
                     defaultValue: 2,
-                    title: 'Hill coefficient - higher = sharper response'
+                    title: 'Hill coefficient: higher = sharper response'
                 },
                 {
                     id: `activator${num}_concentration`,
@@ -538,18 +543,18 @@ function setupCells() {
                     max: 5.0,
                     step: 0.1,
                     defaultValue: 1.0,
-                    title: 'For floating activators'
+                    title: 'Starting activator protein concentration (µM)'
                 }
             ],
             'Inducer Start': [
                 {
-                    id: `inducer${num}_strength`,
+                    id: `inducer${num}_Ka`,
                     label: 'Inducer Strength:',
                     min: 0.01,
                     max: 2.0,
                     step: 0.01,
                     defaultValue: 0.5,
-                    title: 'Strength of inducer effect (placeholder for backend)'
+                    title: 'Binding constant (Ka): lower Ka = induced at lower concentrations'
                 },
                 {
                     id: `inducer${num}_n`,
@@ -558,7 +563,7 @@ function setupCells() {
                     max: 6,
                     step: 1,
                     defaultValue: 2,
-                    title: 'Hill coefficient - higher = sharper response'
+                    title: 'Hill coefficient: higher = sharper response'
                 },
                 {
                     id: `inducer${num}_concentration`,
@@ -572,13 +577,13 @@ function setupCells() {
             ],
             'Inducer End': [
                 {
-                    id: `inducer${num}_strength`,
+                    id: `inducer${num}_Ka`,
                     label: 'Inducer Strength:',
                     min: 0.01,
                     max: 2.0,
                     step: 0.01,
                     defaultValue: 0.5,
-                    title: 'Strength of inducer effect (placeholder for backend)'
+                    title: 'Binding constant (Ka): lower Ka = induced at lower concentrations'
                 },
                 {
                     id: `inducer${num}_n`,
@@ -587,7 +592,7 @@ function setupCells() {
                     max: 6,
                     step: 1,
                     defaultValue: 2,
-                    title: 'Hill coefficient - higher = sharper response'
+                    title: 'Hill coefficient: higher = sharper response'
                 },
                 {
                     id: `inducer${num}_concentration`,
@@ -601,13 +606,13 @@ function setupCells() {
             ],
             'Inhibitor Start': [
                 {
-                    id: `inhibitor${num}_strength`,
+                    id: `inhibitor${num}_Kr`,
                     label: 'Inhibitor Strength:',
                     min: 0.01,
                     max: 2.0,
                     step: 0.01,
                     defaultValue: 0.5,
-                    title: 'Strength of inhibitor effect (placeholder for backend)'
+                    title: 'Binding constant (Kr): lower Kr = induced at lower concentrations'
                 },
                 {
                     id: `inhibitor${num}_n`,
@@ -616,7 +621,7 @@ function setupCells() {
                     max: 6,
                     step: 1,
                     defaultValue: 2,
-                    title: 'Hill coefficient - higher = sharper response'
+                    title: 'Hill coefficient: higher = sharper response'
                 },
                 {
                     id: `inhibitor${num}_concentration`,
@@ -630,13 +635,13 @@ function setupCells() {
             ],
             'Inhibitor End': [
                 {
-                    id: `inhibitor${num}_strength`,
+                    id: `inhibitor${num}_Kr`,
                     label: 'Inhibitor Strength:',
                     min: 0.01,
                     max: 2.0,
                     step: 0.01,
                     defaultValue: 0.5,
-                    title: 'Strength of inhibitor effect (placeholder for backend)'
+                    title: 'Binding constant (Kr): lower Kr = induced at lower concentrations'
                 },
                 {
                     id: `inhibitor${num}_n`,
@@ -645,7 +650,7 @@ function setupCells() {
                     max: 6,
                     step: 1,
                     defaultValue: 2,
-                    title: 'Hill coefficient - higher = sharper response'
+                    title: 'Hill coefficient: higher = sharper response'
                 },
                 {
                     id: `inhibitor${num}_concentration`,
@@ -678,17 +683,22 @@ function setupCells() {
             type: componentType,
             strength: strength,
             id: Date.now() + Math.random(), // Unique ID
-            number: state.componentCounts[baseType] // For display
+            number: state.componentCounts[baseType], // For display
+            customName: null,
+            geneName: null,
+            parameters: {}
         };
         
-        // Add to cellboard in backend-compatible format
+        // Add to both trackers for consistent component lookup
+        state.placedComponents.push(component);
         if (!state.cellboard[componentType]) {
             state.cellboard[componentType] = [];
         }
         state.cellboard[componentType].push(component);
         
-        // Update visual representation (no more separate parameter sections)
-        updateCellDisplay(x, y, componentType, state.componentCounts[baseType]);
+        // Update visual and open parameter modal (matches click-placement behaviour)
+        updateCellDisplay(x, y, componentType, state.componentCounts[baseType], component.customName, component);
+        showComponentParameterModal(x, y, componentType, state.componentCounts[baseType], component);
         
         console.log(`Placed ${componentType} #${state.componentCounts[baseType]} at (${x}, ${y})`);
         return component;
@@ -1335,8 +1345,8 @@ function addPortsToCell(cell, componentType) {
         // Update the component's custom name
         component.customName = newName;
         
-        // Update the visual display
-        updateCellDisplay(x, y, componentType, component.number);
+        // Update the visual display (pass component ref so click-handler keeps a stable reference)
+        updateCellDisplay(x, y, componentType, component.number, component.customName, component);
         
         // Update the parameter section title
         updateParameterSectionTitle(componentType, component.number, newName);
@@ -1439,19 +1449,18 @@ function addPortsToCell(cell, componentType) {
             // Collect dial parameters
             let dialData = collectDialParameters();
             
-            // If toggle is OFF, override with default values (1.0 for all global parameters)
+            // If toggle is OFF, keep component-specific overrides but reset global multipliers to 1.0
             if (!applyDial) {
-                console.log('⚠️ TOGGLE IS OFF - Using default values (1.0) for ALL global parameters');
-                console.log('   This will reset any custom values you entered to have no effect');
+                console.log('⚠️ TOGGLE IS OFF - Global multipliers reset to 1.0; component-specific overrides are preserved');
                 dialData = {
+                    ...dialData,
                     global_transcription_rate: 1.0,
                     global_translation_rate: 1.0,
                     global_degradation_rate: 1.0,
                     temperature_factor: 1.0,
                     resource_availability: 1.0
                 };
-                console.log('[COLLECT] Default dialData (all 1.0):', dialData);
-                console.log('✓ Sending to backend: apply_dial=false, all global params=1.0');
+                console.log('[COLLECT] Toggle-OFF dialData (globals=1.0, component params kept):', dialData);
             }
             
             const colormapSelect = document.getElementById('colormap-select');
@@ -1919,6 +1928,9 @@ function addPortsToCell(cell, componentType) {
     
 
    function clearBoard() {
+        // Close any open parameter modals first (prevents stale component references after clear)
+        document.querySelectorAll('.parameter-modal-overlay').forEach(overlay => overlay.remove());
+        
         // Clear all placed components
         for (const type in state.cellboard) {
             state.cellboard[type] = [];

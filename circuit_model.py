@@ -626,8 +626,17 @@ class OntologyBuilderUnified:
                             default_Ka = 0.4   # Consistent normal activation
                             default_n = 2
                     
-                    # Pull any custom constants from the constants file (optional override)
-                    base = self.constants.get(start.reg_key, {})
+                    # Pull any custom constants from the constants file (optional override).
+                    # Merge from all possible key formats, lowest → highest priority, so that
+                    # user overrides stored under start.label (e.g. "repressor_start_1") always
+                    # win over the generic reg_key entry.  Using .update() instead of an
+                    # `or`-chain avoids the silent falsy-empty-dict problem: an empty {} from
+                    # one lookup would short-circuit the chain and skip the remaining keys.
+                    base = {}
+                    for _lookup_key in [start.reg_key, end.label, start.label]:
+                        if _lookup_key and _lookup_key in self.constants:
+                            base.update(self.constants[_lookup_key])
+                    
                     real_params = {
                         "type": rec["type"],
                         "is_floating": rec["is_floating"],
@@ -998,14 +1007,22 @@ def simulate_circuit(builder: OntologyBuilderUnified, colormap: str = 'cool') ->
             for reg in cell["regulations"]
         )
         
+
+        
         if len(p0) >= 3 and has_regulatory_feedback:
-            # Break symmetry whenever all proteins start at the same concentration.
-            # Symmetric ICs make a repressilator converge to a fixed point regardless of n.
-            if np.std(p0) < 1e-6 * (np.max(np.abs(p0)) + 1e-10):
+        # Break symmetry ONLY when every protein is still at the hardcoded default
+        # (i.e. the user never touched initial concentrations).  If the user set a
+        # custom value — even if all three happen to be equal — respect their choice
+        # so the override is not silently discarded.
+            _all_at_hardcoded_default = all(
+                abs(v - initial_conc_default) < 1e-9 for v in p0
+            )
+            if _all_at_hardcoded_default and np.std(p0) < 1e-6 * (np.max(np.abs(p0)) + 1e-10):
                 base = p0[0] if p0[0] > 1e-9 else 0.01
                 asymmetry_factors = [1.0, 0.1, 0.05]
                 for i in range(len(p0)):
                     p0[i] = asymmetry_factors[i % len(asymmetry_factors)] * base
+        
         elif len(p0) >= 1 and np.allclose(p0, 0.0):
             for i in range(len(p0)):
                 p0[i] = 0.01
