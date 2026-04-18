@@ -678,17 +678,22 @@ function setupCells() {
             type: componentType,
             strength: strength,
             id: Date.now() + Math.random(), // Unique ID
-            number: state.componentCounts[baseType] // For display
+            number: state.componentCounts[baseType], // For display
+            customName: null,
+            geneName: null,
+            parameters: {}
         };
         
-        // Add to cellboard in backend-compatible format
+        // Add to both trackers for consistent component lookup
+        state.placedComponents.push(component);
         if (!state.cellboard[componentType]) {
             state.cellboard[componentType] = [];
         }
         state.cellboard[componentType].push(component);
         
-        // Update visual representation (no more separate parameter sections)
-        updateCellDisplay(x, y, componentType, state.componentCounts[baseType]);
+        // Update visual and open parameter modal (matches click-placement behaviour)
+        updateCellDisplay(x, y, componentType, state.componentCounts[baseType], component.customName, component);
+        showComponentParameterModal(x, y, componentType, state.componentCounts[baseType], component);
         
         console.log(`Placed ${componentType} #${state.componentCounts[baseType]} at (${x}, ${y})`);
         return component;
@@ -1335,8 +1340,8 @@ function addPortsToCell(cell, componentType) {
         // Update the component's custom name
         component.customName = newName;
         
-        // Update the visual display
-        updateCellDisplay(x, y, componentType, component.number);
+        // Update the visual display (pass component ref so click-handler keeps a stable reference)
+        updateCellDisplay(x, y, componentType, component.number, component.customName, component);
         
         // Update the parameter section title
         updateParameterSectionTitle(componentType, component.number, newName);
@@ -1439,19 +1444,18 @@ function addPortsToCell(cell, componentType) {
             // Collect dial parameters
             let dialData = collectDialParameters();
             
-            // If toggle is OFF, override with default values (1.0 for all global parameters)
+            // If toggle is OFF, keep component-specific overrides but reset global multipliers to 1.0
             if (!applyDial) {
-                console.log('⚠️ TOGGLE IS OFF - Using default values (1.0) for ALL global parameters');
-                console.log('   This will reset any custom values you entered to have no effect');
+                console.log('⚠️ TOGGLE IS OFF - Global multipliers reset to 1.0; component-specific overrides are preserved');
                 dialData = {
+                    ...dialData,
                     global_transcription_rate: 1.0,
                     global_translation_rate: 1.0,
                     global_degradation_rate: 1.0,
                     temperature_factor: 1.0,
                     resource_availability: 1.0
                 };
-                console.log('[COLLECT] Default dialData (all 1.0):', dialData);
-                console.log('✓ Sending to backend: apply_dial=false, all global params=1.0');
+                console.log('[COLLECT] Toggle-OFF dialData (globals=1.0, component params kept):', dialData);
             }
             
             const colormapSelect = document.getElementById('colormap-select');
@@ -1919,6 +1923,9 @@ function addPortsToCell(cell, componentType) {
     
 
    function clearBoard() {
+        // Close any open parameter modals first (prevents stale component references after clear)
+        document.querySelectorAll('.parameter-modal-overlay').forEach(overlay => overlay.remove());
+        
         // Clear all placed components
         for (const type in state.cellboard) {
             state.cellboard[type] = [];

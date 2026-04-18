@@ -796,6 +796,11 @@
         };
 
         function resetParameters() {
+            // Reset component-specific parameters via the main script's exposed function
+            if (typeof window.resetComponentParameters === 'function') {
+                window.resetComponentParameters();
+            }
+            
             // Reset global parameters to default values
             const globalParams = {
                 'global_transcription_rate': '1.0',
@@ -833,15 +838,8 @@
            
             console.log('Parameters reset to default values');
 
-            // Clear component parameters directly from eeprom.js state
-            if (typeof state !== 'undefined' && state.cellboard) {
-                for (const [type, components] of Object.entries(state.cellboard)) {
-                    components.forEach(comp => {
-                        comp.parameters = {};
-                    });
-                }
-                console.log('Component parameters cleared from state.cellboard');
-            }
+            // Note: component parameters are cleared via window.resetComponentParameters() above
+            console.log('Parameters reset to default values');
 }
 
         function exportScript() {

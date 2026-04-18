@@ -327,7 +327,7 @@ def simulate():
             for param_name, value in dial_data.items():
                 try:
                     # Individual component parameters (promoter1_strength, cds2_translation_rate, etc.)
-                    if '_' in param_name and any(param_name.startswith(comp_type) for comp_type in ['promoter', 'rbs', 'cds', 'terminator', 'protein']):
+                    if '_' in param_name and any(param_name.startswith(comp_type) for comp_type in ['promoter', 'rbs', 'cds', 'terminator', 'protein', 'repressor', 'activator', 'inducer', 'inhibitor']):
                         # Extract component number and parameter type
                         if param_name.startswith('promoter') and '_strength' in param_name:
                             comp_num = param_name.replace('promoter', '').replace('_strength', '')
@@ -376,7 +376,106 @@ def simulate():
                                 component_overrides[comp_key] = {}
                             component_overrides[comp_key]['efficiency'] = float(value)
                             print(f"  - Individual override: {comp_key}.efficiency = {value}")
-                    
+
+                        # Regulator individual overrides - apply to both start and end keys
+                        # Accepts both new names (_Kr, _Ka, _n) and legacy names (_constant, _cooperativity)
+
+                        elif param_name.startswith('repressor') and ('_Kr' in param_name or '_constant' in param_name):
+                            comp_num = param_name.replace('repressor', '').replace('_Kr', '').replace('_constant', '')
+                            for suffix in [f'repressor_start_{comp_num}', f'repressor_end_{comp_num}']:
+                                if suffix not in component_overrides:
+                                    component_overrides[suffix] = {}
+                                component_overrides[suffix]['Kr'] = float(value)
+                            print(f"  - Regulator override: repressor_{comp_num} Kr = {value}")
+
+                        elif param_name.startswith('repressor') and (param_name.endswith('_n') or '_cooperativity' in param_name):
+                            comp_num = param_name.replace('repressor', '').replace('_n', '').replace('_cooperativity', '')
+                            for suffix in [f'repressor_start_{comp_num}', f'repressor_end_{comp_num}']:
+                                if suffix not in component_overrides:
+                                    component_overrides[suffix] = {}
+                                component_overrides[suffix]['n'] = int(float(value))
+                            print(f"  - Regulator override: repressor_{comp_num} n = {value}")
+
+                        elif param_name.startswith('repressor') and '_concentration' in param_name:
+                            comp_num = param_name.replace('repressor', '').replace('_concentration', '')
+                            for suffix in [f'repressor_start_{comp_num}', f'repressor_end_{comp_num}']:
+                                if suffix not in component_overrides:
+                                    component_overrides[suffix] = {}
+                                component_overrides[suffix]['concentration'] = float(value)
+                            print(f"  - Regulator override: repressor_{comp_num} concentration = {value}")
+
+                        elif param_name.startswith('activator') and ('_Ka' in param_name or '_constant' in param_name):
+                            comp_num = param_name.replace('activator', '').replace('_Ka', '').replace('_constant', '')
+                            for suffix in [f'activator_start_{comp_num}', f'activator_end_{comp_num}']:
+                                if suffix not in component_overrides:
+                                    component_overrides[suffix] = {}
+                                component_overrides[suffix]['Ka'] = float(value)
+                            print(f"  - Regulator override: activator_{comp_num} Ka = {value}")
+
+                        elif param_name.startswith('activator') and (param_name.endswith('_n') or '_cooperativity' in param_name):
+                            comp_num = param_name.replace('activator', '').replace('_n', '').replace('_cooperativity', '')
+                            for suffix in [f'activator_start_{comp_num}', f'activator_end_{comp_num}']:
+                                if suffix not in component_overrides:
+                                    component_overrides[suffix] = {}
+                                component_overrides[suffix]['n'] = int(float(value))
+                            print(f"  - Regulator override: activator_{comp_num} n = {value}")
+
+                        elif param_name.startswith('activator') and '_concentration' in param_name:
+                            comp_num = param_name.replace('activator', '').replace('_concentration', '')
+                            for suffix in [f'activator_start_{comp_num}', f'activator_end_{comp_num}']:
+                                if suffix not in component_overrides:
+                                    component_overrides[suffix] = {}
+                                component_overrides[suffix]['concentration'] = float(value)
+                            print(f"  - Regulator override: activator_{comp_num} concentration = {value}")
+
+                        elif param_name.startswith('inducer') and ('_Ka' in param_name or '_constant' in param_name):
+                            comp_num = param_name.replace('inducer', '').replace('_Ka', '').replace('_constant', '')
+                            for suffix in [f'inducer_start_{comp_num}', f'inducer_end_{comp_num}']:
+                                if suffix not in component_overrides:
+                                    component_overrides[suffix] = {}
+                                component_overrides[suffix]['Ka'] = float(value)
+                            print(f"  - Regulator override: inducer_{comp_num} Ka = {value}")
+
+                        elif param_name.startswith('inducer') and (param_name.endswith('_n') or '_cooperativity' in param_name):
+                            comp_num = param_name.replace('inducer', '').replace('_n', '').replace('_cooperativity', '')
+                            for suffix in [f'inducer_start_{comp_num}', f'inducer_end_{comp_num}']:
+                                if suffix not in component_overrides:
+                                    component_overrides[suffix] = {}
+                                component_overrides[suffix]['n'] = int(float(value))
+                            print(f"  - Regulator override: inducer_{comp_num} n = {value}")
+
+                        elif param_name.startswith('inducer') and '_concentration' in param_name:
+                            comp_num = param_name.replace('inducer', '').replace('_concentration', '')
+                            for suffix in [f'inducer_start_{comp_num}', f'inducer_end_{comp_num}']:
+                                if suffix not in component_overrides:
+                                    component_overrides[suffix] = {}
+                                component_overrides[suffix]['concentration'] = float(value)
+                            print(f"  - Regulator override: inducer_{comp_num} concentration = {value}")
+
+                        elif param_name.startswith('inhibitor') and ('_Kr' in param_name or '_constant' in param_name):
+                            comp_num = param_name.replace('inhibitor', '').replace('_Kr', '').replace('_constant', '')
+                            for suffix in [f'inhibitor_start_{comp_num}', f'inhibitor_end_{comp_num}']:
+                                if suffix not in component_overrides:
+                                    component_overrides[suffix] = {}
+                                component_overrides[suffix]['Kr'] = float(value)
+                            print(f"  - Regulator override: inhibitor_{comp_num} Kr = {value}")
+
+                        elif param_name.startswith('inhibitor') and (param_name.endswith('_n') or '_cooperativity' in param_name):
+                            comp_num = param_name.replace('inhibitor', '').replace('_n', '').replace('_cooperativity', '')
+                            for suffix in [f'inhibitor_start_{comp_num}', f'inhibitor_end_{comp_num}']:
+                                if suffix not in component_overrides:
+                                    component_overrides[suffix] = {}
+                                component_overrides[suffix]['n'] = int(float(value))
+                            print(f"  - Regulator override: inhibitor_{comp_num} n = {value}")
+
+                        elif param_name.startswith('inhibitor') and '_concentration' in param_name:
+                            comp_num = param_name.replace('inhibitor', '').replace('_concentration', '')
+                            for suffix in [f'inhibitor_start_{comp_num}', f'inhibitor_end_{comp_num}']:
+                                if suffix not in component_overrides:
+                                    component_overrides[suffix] = {}
+                                component_overrides[suffix]['concentration'] = float(value)
+                            print(f"  - Regulator override: inhibitor_{comp_num} concentration = {value}")
+
                     # Global regulatory parameters
                     elif param_name == 'binding_affinity':
                         global_overrides['repressor']['Kr'] = 1.0 / max(0.01, float(value))
@@ -397,16 +496,22 @@ def simulate():
             
             # Apply individual component overrides first (highest priority)
             for comp_name, overrides in component_overrides.items():
-                if comp_name in adjusted_constants:
-                    for param_name, override_value in overrides.items():
-                        if param_name in adjusted_constants[comp_name]:
-                            original_val = adjusted_constants[comp_name][param_name]
-                            adjusted_constants[comp_name][param_name] = override_value
-                            print(f"Applied individual override: {comp_name}.{param_name} = {original_val} → {override_value}")
-                        else:
-                            print(f"Warning: Parameter {param_name} not found in {comp_name}")
-                else:
-                    print(f"Warning: Component {comp_name} not found in constants")
+                if comp_name not in adjusted_constants:
+                    # Create a new entry for regulator components that may not be in the base constants
+                    comp_type_guess = comp_name.split('_')[0]
+                    base_template = next(
+                        (adjusted_constants[k] for k in adjusted_constants
+                         if adjusted_constants[k].get('type') == comp_type_guess),
+                        {}
+                    )
+                    import copy as _copy
+                    adjusted_constants[comp_name] = _copy.deepcopy(base_template)
+                    print(f"Created new constants entry for {comp_name} from template")
+
+                for param_name, override_value in overrides.items():
+                    original_val = adjusted_constants[comp_name].get(param_name, '<new>')
+                    adjusted_constants[comp_name][param_name] = override_value
+                    print(f"Applied individual override: {comp_name}.{param_name} = {original_val} → {override_value}")
             
             # Apply global regulatory overrides to all relevant components
             for comp_name in adjusted_constants:
@@ -532,45 +637,47 @@ def simulate():
                     f'cds{comp_num}_degradation_rate': 'degradation_rate',
                     f'protein{comp_num}_initial_conc': 'init_conc'
                 },
-                'terminator': {f'terminator{comp_num}_efficiency': 'efficiency'},
+
+                'terminator': {f'terminator{comp_num}_efficiency': 'efficiency'
+                },
                 'repressor_start': {
-                    f'repressor{comp_num}_constant': 'Kr',
-                    f'repressor{comp_num}_cooperativity': 'n',
-                    f'repressor{comp_num}_concentration': 'init_conc'
+                    f'repressor{comp_num}_Kr': 'Kr',
+                    f'repressor{comp_num}_n': 'n',
+                    f'repressor{comp_num}_concentration': 'concentration'
                 },
                 'repressor_end': {
-                    f'repressor{comp_num}_constant': 'Kr',
-                    f'repressor{comp_num}_cooperativity': 'n',
+                    f'repressor{comp_num}_Kr': 'Kr',
+                    f'repressor{comp_num}_n': 'n',
                     f'repressor{comp_num}_concentration': 'concentration'
                 },
                 'activator_start': {
-                    f'activator{comp_num}_constant': 'Ka',
-                    f'activator{comp_num}_cooperativity': 'n',
+                    f'activator{comp_num}_Ka': 'Ka',
+                    f'activator{comp_num}_n': 'n',
                     f'activator{comp_num}_concentration': 'concentration'
                 },
                 'activator_end': {
-                    f'activator{comp_num}_constant': 'Ka',
-                    f'activator{comp_num}_cooperativity': 'n',
+                    f'activator{comp_num}_Ka': 'Ka',
+                    f'activator{comp_num}_n': 'n',
                     f'activator{comp_num}_concentration': 'concentration'
                 },
                 'inducer_start': {
-                    f'inducer{comp_num}_constant': 'Ka',
-                    f'inducer{comp_num}_cooperativity': 'n',
+                    f'inducer{comp_num}_Ka': 'Ka',
+                    f'inducer{comp_num}_n': 'n',
                     f'inducer{comp_num}_concentration': 'concentration'
                 },
                 'inducer_end': {
-                    f'inducer{comp_num}_constant': 'Ka',
-                    f'inducer{comp_num}_cooperativity': 'n',
+                    f'inducer{comp_num}_Ka': 'Ka',
+                    f'inducer{comp_num}_n': 'n',
                     f'inducer{comp_num}_concentration': 'concentration'
                 },
                 'inhibitor_start': {
-                    f'inhibitor{comp_num}_constant': 'Kr',
-                    f'inhibitor{comp_num}_cooperativity': 'n',
+                    f'inhibitor{comp_num}_Kr': 'Kr',
+                    f'inhibitor{comp_num}_n': 'n',
                     f'inhibitor{comp_num}_concentration': 'concentration'
                 },
                 'inhibitor_end': {
-                    f'inhibitor{comp_num}_constant': 'Kr',
-                    f'inhibitor{comp_num}_cooperativity': 'n',
+                    f'inhibitor{comp_num}_Kr': 'Kr',
+                    f'inhibitor{comp_num}_n': 'n',
                     f'inhibitor{comp_num}_concentration': 'concentration'
                 }
             }
