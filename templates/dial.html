@@ -795,12 +795,17 @@
             console.log('=====================================');
         };
 
-        function resetParameters() {
+        async function resetParameters() {
+            // Confirm with user before wiping all overrides
+            if (!await showConfirm('Are you sure you want to reset all parameters? This will revert every component’s overrides back to their default values.')) {
+                return;
+            }
+
             // Reset component-specific parameters via the main script's exposed function
             if (typeof window.resetComponentParameters === 'function') {
                 window.resetComponentParameters();
             }
-            
+                
             // Reset global parameters to default values
             const globalParams = {
                 'global_transcription_rate': '1.0',
