@@ -377,6 +377,24 @@ window.resetParameters = async function() {
     });
     
     console.log('Parameters reset to defaults');
+    
+    // Clear all per-component parameter overrides in state so reopened modals show defaults
+    try {
+        if (typeof state !== 'undefined') {
+            if (state.cellboard) {
+                Object.values(state.cellboard).forEach(arr => {
+                    if (Array.isArray(arr)) arr.forEach(c => { if (c) c.parameters = {}; });
+                });
+            }
+            if (Array.isArray(state.placedComponents)) {
+                state.placedComponents.forEach(c => { if (c) c.parameters = {}; });
+            }
+            console.log('Cleared per-component parameter overrides in state');
+        }
+    } catch (e) {
+        console.warn('Could not clear component overrides:', e);
+    }
+    
     await showAlert('All parameters have been reset to their default values.');
 };
 
@@ -5674,5 +5692,36 @@ document.addEventListener('DOMContentLoaded', function() {
     if (window.location.pathname.includes('/eeprom')) {
         initFullScreenDetection();
     }
+});
+
+// Ensure component-state parameter overrides are cleared on Reset, regardless of
+// which page (eeprom/dial) provides the resetParameters implementation. Runs after
+// any inline <script> in the page has had a chance to overwrite window.resetParameters.
+document.addEventListener('DOMContentLoaded', function () {
+    const original = window.resetParameters;
+    window.resetParameters = async function (...args) {
+        const result = original ? await original.apply(this, args) : undefined;
+        try {
+            if (typeof state !== 'undefined') {
+                const wipe = (c) => {
+                    if (c && c.parameters && typeof c.parameters === 'object') {
+                        Object.keys(c.parameters).forEach(k => delete c.parameters[k]);
+                    }
+                };
+                if (state.cellboard) {
+                    Object.values(state.cellboard).forEach(arr => {
+                        if (Array.isArray(arr)) arr.forEach(wipe);
+                    });
+                }
+                if (Array.isArray(state.placedComponents)) {
+                    state.placedComponents.forEach(wipe);
+                }
+                console.log('[ResetWrap] Cleared per-component parameter overrides in state');
+            }
+        } catch (e) {
+            console.warn('[ResetWrap] Could not clear component overrides:', e);
+        }
+        return result;
+    };
 });
 
