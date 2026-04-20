@@ -22,6 +22,37 @@ function formatComponentName(name) {
 const REGULATOR_TYPES = ['Repressor Start', 'Repressor End', 'Activator Start', 'Activator End', 
                         'Inducer Start', 'Inducer End', 'Inhibitor Start', 'Inhibitor End'];
 
+                        // ===== CUSTOM MODAL HELPERS =====
+function showConfirm(message) {
+    return new Promise(resolve => {
+        const overlay = document.getElementById('custom-modal-overlay');
+        document.getElementById('custom-modal-message').innerHTML = message.replace(/\n/g, '<br>');
+        document.getElementById('custom-modal-cancel').style.display = 'inline-block';
+        overlay.style.display = 'flex';
+        function cleanup(result) {
+            overlay.style.display = 'none';
+            document.getElementById('custom-modal-ok').onclick = null;
+            document.getElementById('custom-modal-cancel').onclick = null;
+            resolve(result);
+        }
+        document.getElementById('custom-modal-ok').onclick = () => cleanup(true);
+        document.getElementById('custom-modal-cancel').onclick = () => cleanup(false);
+    });
+}
+
+function showAlert(message) {
+    return new Promise(resolve => {
+        const overlay = document.getElementById('custom-modal-overlay');
+        document.getElementById('custom-modal-message').innerHTML = message.replace(/\n/g, '<br>');
+        document.getElementById('custom-modal-cancel').style.display = 'none';
+        overlay.style.display = 'flex';
+        document.getElementById('custom-modal-ok').onclick = () => {
+            overlay.style.display = 'none';
+            resolve();
+        };
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     // Simplified state management
     const state = {
@@ -50,6 +81,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
     
+
     // Fetch parameter defaults from backend
     async function loadParameterDefaults() {
         try {
@@ -2185,7 +2217,7 @@ function updateComponentsByType(paramType, globalValue) {
 /**
  * Reset all component parameters to their default values from constants.py
  */
-function resetComponentsToDefaults() {
+async function resetComponentsToDefaults() {
     const inputs = document.querySelectorAll('#dial-form input[data-default-value]');
     
     inputs.forEach(input => {

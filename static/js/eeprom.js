@@ -328,11 +328,6 @@ async function clearBoard() {
             dialAccordion.querySelectorAll('[id^="section_"]').forEach(section => section.remove());
         }
 
-        // ADD before: console.log('Board cleared successfully');
-        state.componentCounts = {};
-        document.querySelectorAll('.cell.has-component').forEach(cell => cell.classList.remove('has-component'));
-        document.querySelectorAll('[id^="section_"]').forEach(section => section.remove());
-
         console.log('Board cleared successfully');
     }
 }
@@ -366,12 +361,10 @@ window.resetParameters = async function() {
     // Reset all other parameter inputs
     const parameterInputs = document.querySelectorAll('#parameter-panel input[type="number"], #parameter-panel input[type="range"], #dial-form input[type="number"]');
     parameterInputs.forEach(input => {
-        if (!defaultParams[input.id] && input.hasAttribute('data-default')) {
-            input.value = input.getAttribute('data-default');
-        } else if (!defaultParams[input.id] && input.hasAttribute('value')) {
-            input.value = input.getAttribute('value');
-        }
-        
+        if (!defaultParams[input.id] && input.hasAttribute('data-default-value')) {
+            input.value = input.getAttribute('data-default-value');
+            }
+
         // Trigger change event to update any linked elements
         input.dispatchEvent(new Event('change', { bubbles: true }));
     });

@@ -795,7 +795,7 @@
             console.log('=====================================');
         };
 
-        function resetParameters() {
+        async function resetParameters() {
             // Reset component-specific parameters via the main script's exposed function
             if (typeof window.resetComponentParameters === 'function') {
                 window.resetComponentParameters();
@@ -823,16 +823,8 @@
             });
             
             // Reset all dynamic component parameters to their defaults
-            document.querySelectorAll('#dial-form input[type="number"]').forEach(input => {
-                if (input.hasAttribute('data-default')) {
-                    input.value = input.getAttribute('data-default');
-                } else if (!globalParams[input.id]) {
-                    // For dynamic parameters, get the default from the input's value attribute
-                    const defaultValue = input.getAttribute('value');
-                    if (defaultValue) {
-                        input.value = defaultValue;
-                    }
-                }
+            document.querySelectorAll('#dial-form input[data-default-value]').forEach(input => {
+                input.value = input.getAttribute('data-default-value');
             });
             
            
@@ -840,7 +832,9 @@
 
             // Note: component parameters are cleared via window.resetComponentParameters() above
             console.log('Parameters reset to default values');
+                await showAlert('All parameters have been reset to their default values.');
 }
+
 
         function exportScript() {
             const btn = document.getElementById('export-script-btn');
