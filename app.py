@@ -1411,6 +1411,8 @@ def convert_hardware_to_cellboard(channel_data):
         'activator_end': 'Activator End',
         'inducer_start': 'Inducer Start',
         'inducer_end': 'Inducer End',
+        'inhibitor_start': 'Inhibitor Start',
+        'inhibitor_end': 'Inhibitor End',
         'inducer': 'Inducer',
         'rep_start': 'Repressor Start',
         'rep_end': 'Repressor End',
