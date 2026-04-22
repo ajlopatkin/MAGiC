@@ -1001,33 +1001,31 @@ def simulate_circuit(builder: OntologyBuilderUnified, colormap: str = 'cool') ->
         # Initial conditions and time vector - use user parameters or defaults
         p0 = np.array([cds_params[cds_id]["initial_conc"] for cds_id in cds_list])
         
-        # For repressilator (3+ proteins with regulatory feedback), break symmetry if all concentrations are zero
+        # Break symmetry whenever the initial conditions are (nearly) symmetric AND the
+        # circuit has regulatory feedback. A symmetric IC sits exactly on the symmetric
+        # fixed point of a repressilator-style ODE, so the curves stay identical
+        # forever no matter how correct the regulation graph is. We only nudge the ICs
+        # in this case; if the user set genuinely asymmetric ICs we respect them.
         has_regulatory_feedback = any(
-            reg["type"] not in ("constitutive",) 
+            reg["type"] not in ("constitutive",)
             for reg in cell["regulations"]
         )
-        
 
-        
+        if len(p0) >= 1 and np.allclose(p0, 0.0):
+            p0[:] = 0.01  # don't start dead, otherwise nothing can ever produce protein
+
         if len(p0) >= 3 and has_regulatory_feedback:
-        # Break symmetry ONLY when every protein is still at the hardcoded default
-        # (i.e. the user never touched initial concentrations).  If the user set a
-        # custom value — even if all three happen to be equal — respect their choice
-        # so the override is not silently discarded.
-            _all_at_hardcoded_default = all(
-                abs(v - initial_conc_default) < 1e-9 for v in p0
-            )
-            if _all_at_hardcoded_default and np.std(p0) < 1e-6 * (np.max(np.abs(p0)) + 1e-10):
-                base = p0[0] if p0[0] > 1e-9 else 0.01
-                asymmetry_factors = [1.0, 0.1, 0.05]
+            mean_p0 = float(np.mean(np.abs(p0)))
+            spread = float(np.std(p0)) / (mean_p0 + 1e-12)
+            if spread < 1e-3:                       # essentially symmetric ICs
+                base = mean_p0 if mean_p0 > 1e-9 else 0.01
+                # Index-based perturbation that never repeats and stays O(base),
+                # so the user's chosen magnitude is preserved within ±25%.
                 for i in range(len(p0)):
-                    p0[i] = asymmetry_factors[i % len(asymmetry_factors)] * base
+                    p0[i] = base * (1.0 + 0.25 * np.sin(i + 1))
+
+        print(f"[SIM] p0 (post-symmetry-break) = {p0.tolist()}  feedback={has_regulatory_feedback}")
         
-        elif len(p0) >= 1 and np.allclose(p0, 0.0):
-            for i in range(len(p0)):
-                p0[i] = 0.01
-             
-   
         t = np.linspace(0, 24, 200)  # 0-24 hours as requested
         
         # Solve ODE
