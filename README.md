@@ -52,18 +52,7 @@ Prerequisite: Python 3.10 or newer must be installed and available on your PATH.
 
    To stop the server: Ctrl+C. To leave the virtual environment: deactivate.
 
-## Features:
-- Drag-and-drop circuit design interface
-- Advanced genetic circuit simulation
-- Parameter tuning with dial mode
-- EEPROM hardware integration
-- LaTeX equation display
-- Export/import functionality
 
-**Port Configuration:**
-- Uses port 5001 by default to avoid conflicts with macOS AirPlay Receiver on port 5000
-- Set PORT environment variable to use different port: `PORT=8000 python main.py`
-- To deactivate virtual environment when done: `deactivate`
 
 ## Features:
 - Drag-and-drop circuit design interface
@@ -72,3 +61,4 @@ Prerequisite: Python 3.10 or newer must be installed and available on your PATH.
 - EEPROM hardware integration
 - LaTeX equation display
 - Export/import functionality
+
