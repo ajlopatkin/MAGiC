@@ -5728,7 +5728,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 500);
 });
 
-// ===== FULL SCREEN DETECTION - INSTANT =====
+// Full screen
+/*
 function checkFullScreen() {
     const isFullScreen = document.fullscreenElement || 
                          document.webkitFullscreenElement || 
@@ -5791,6 +5792,7 @@ document.addEventListener('DOMContentLoaded', function() {
         initFullScreenDetection();
     }
 });
+*/
 
 // Ensure component-state parameter overrides are cleared on Reset, regardless of
 // which page (eeprom/dial) provides the resetParameters implementation. Runs after
