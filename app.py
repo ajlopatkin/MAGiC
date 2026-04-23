@@ -174,6 +174,30 @@ def simulate():
             }), 400
         
         cellboard = data['cellboard']
+
+        # Validate no non-inducer/non-inhibitor components are outside the cell interior (1..8 on both axes).
+        INDUCER_INHIBITOR_TYPES = {
+            'Inducer Start', 'Inducer End', 'Inhibitor Start', 'Inhibitor End'
+        }
+        outside_violations = []
+        for component_type, components in cellboard.items():
+            if component_type in INDUCER_INHIBITOR_TYPES:
+                continue
+            for comp in components:
+                cx = int(comp.get('x', 0))
+                cy = int(comp.get('y', 0))
+                if cx < 1 or cx > 8 or cy < 1 or cy > 8:
+                    outside_violations.append(f"{component_type} at ({cx}, {cy})")
+
+        if outside_violations:
+            return jsonify({
+                'status': 'error',
+                'message': (
+                    "Circuit cannot be modeled — these components are outside the cell membrane "
+                    "(only inducers and inhibitors may be placed outside): "
+                    + "; ".join(outside_violations)
+                )
+            }), 400
         # Explicit flag from client telling whether dial overrides should be applied
         apply_dial = bool(data.get('apply_dial', False))
         # Always use dial_data if present (it contains 1.0 defaults when toggle is off)
@@ -214,7 +238,7 @@ def simulate():
                 strength = comp.get('strength', 'norm')
                 
                 # Convert position to MUX/Channel format
-                channel = y * 8 + x
+                channel = y * 10 + x
                 mux_letter = 'A'  # Start with MUX A for simplicity
                 
                 # Map component types to hardware naming convention
@@ -267,6 +291,7 @@ def simulate():
                     'strength': strength,
                     'position': channel,  # For sorting
                     'comp_number': effective_num,  # Uses pair_id for regulators with arrows
+                    'modal_number': int(comp['number']) if comp.get('number') is not None else effective_num,
                     'base_type': base_type,
                     'customName': comp.get('customName', '').strip() if comp.get('customName') else None,
                     'geneName': gene_name,
@@ -616,105 +641,115 @@ def simulate():
         print("=====================================")
         
 
-        # Apply per-component parameters from the modal (highest priority)
+        # Apply per-component parameters from the modal (highest priority).
+        # We use TWO different numbers per component:
+        #   - `comp_num` (pair_id for regulators) → drives `comp_name`, which is the
+        #     key circuit_model.py uses when it looks up adjusted_constants.
+        #   - `modal_num` (the number the user actually saw in the modal) → drives
+        #     the param_mapping lookup keys (e.g. "cds3_degradation_rate"), which is
+        #     what the frontend baked into comp['parameters'].
+        # Override values are written under `comp_name` so the simulator picks them up.
         for comp in placed_components:
             comp_name = comp['name']
             base_type = comp['base_type']
-            comp_num = comp['comp_number']
-            params = comp.get('parameters', {})
-            
+            comp_num  = comp['comp_number']     # pair_id for regulators, sequential otherwise
+            modal_num = comp.get('modal_number')
+            if modal_num is None:
+                modal_num = comp.get('number')
+            if modal_num is None:
+                modal_num = comp_num
+            modal_num = int(modal_num)   # the number the modal used in its param keys
+            params    = comp.get('parameters', {})
+
             if not params:
                 continue
-            
+
             if comp_name not in adjusted_constants:
                 adjusted_constants[comp_name] = {}
-            
-            param_mapping = {
-                'promoter': {f'promoter{comp_num}_strength': 'strength'},
-                'rbs': {f'rbs{comp_num}_efficiency': 'efficiency'},
-                'cds': {
-                    f'cds{comp_num}_translation_rate': 'translation_rate',
-                    f'cds{comp_num}_degradation_rate': 'degradation_rate',
-                    f'protein{comp_num}_initial_conc': 'init_conc'
-                },
 
-                'terminator': {f'terminator{comp_num}_efficiency': 'efficiency'
+            # IMPORTANT: param_mapping lookup keys are built with modal_num so they
+            # match the keys the frontend modal baked into params.
+            param_mapping = {
+                'promoter':   {f'promoter{modal_num}_strength': 'strength'},
+                'rbs':        {f'rbs{modal_num}_efficiency': 'efficiency'},
+                'cds': {
+                    f'cds{modal_num}_translation_rate': 'translation_rate',
+                    f'cds{modal_num}_degradation_rate': 'degradation_rate',
+                    f'protein{modal_num}_initial_conc': 'init_conc',
                 },
+                'terminator': {f'terminator{modal_num}_efficiency': 'efficiency'},
                 'repressor_start': {
-                    f'repressor{comp_num}_Kr': 'Kr',
-                    f'repressor{comp_num}_n': 'n',
-                    f'repressor{comp_num}_concentration': 'concentration'
+                    f'repressor{modal_num}_Kr': 'Kr',
+                    f'repressor{modal_num}_n': 'n',
+                    f'repressor{modal_num}_concentration': 'concentration',
                 },
                 'repressor_end': {
-                    f'repressor{comp_num}_Kr': 'Kr',
-                    f'repressor{comp_num}_n': 'n',
-                    f'repressor{comp_num}_concentration': 'concentration'
+                    f'repressor{modal_num}_Kr': 'Kr',
+                    f'repressor{modal_num}_n': 'n',
+                    f'repressor{modal_num}_concentration': 'concentration',
                 },
                 'activator_start': {
-                    f'activator{comp_num}_Ka': 'Ka',
-                    f'activator{comp_num}_n': 'n',
-                    f'activator{comp_num}_concentration': 'concentration'
+                    f'activator{modal_num}_Ka': 'Ka',
+                    f'activator{modal_num}_n': 'n',
+                    f'activator{modal_num}_concentration': 'concentration',
                 },
                 'activator_end': {
-                    f'activator{comp_num}_Ka': 'Ka',
-                    f'activator{comp_num}_n': 'n',
-                    f'activator{comp_num}_concentration': 'concentration'
+                    f'activator{modal_num}_Ka': 'Ka',
+                    f'activator{modal_num}_n': 'n',
+                    f'activator{modal_num}_concentration': 'concentration',
                 },
                 'inducer_start': {
-                    f'inducer{comp_num}_Ka': 'Ka',
-                    f'inducer{comp_num}_n': 'n',
-                    f'inducer{comp_num}_concentration': 'concentration'
+                    f'inducer{modal_num}_Ka': 'Ka',
+                    f'inducer{modal_num}_n': 'n',
+                    f'inducer{modal_num}_concentration': 'concentration',
                 },
                 'inducer_end': {
-                    f'inducer{comp_num}_Ka': 'Ka',
-                    f'inducer{comp_num}_n': 'n',
-                    f'inducer{comp_num}_concentration': 'concentration'
+                    f'inducer{modal_num}_Ka': 'Ka',
+                    f'inducer{modal_num}_n': 'n',
+                    f'inducer{modal_num}_concentration': 'concentration',
                 },
                 'inhibitor_start': {
-                    f'inhibitor{comp_num}_Kr': 'Kr',
-                    f'inhibitor{comp_num}_n': 'n',
-                    f'inhibitor{comp_num}_concentration': 'concentration'
+                    f'inhibitor{modal_num}_Kr': 'Kr',
+                    f'inhibitor{modal_num}_n': 'n',
+                    f'inhibitor{modal_num}_concentration': 'concentration',
                 },
                 'inhibitor_end': {
-                    f'inhibitor{comp_num}_Kr': 'Kr',
-                    f'inhibitor{comp_num}_n': 'n',
-                    f'inhibitor{comp_num}_concentration': 'concentration'
-                }
+                    f'inhibitor{modal_num}_Kr': 'Kr',
+                    f'inhibitor{modal_num}_n': 'n',
+                    f'inhibitor{modal_num}_concentration': 'concentration',
+                },
             }
-            
-            mapping = param_mapping.get(base_type, {})
-            for frontend_key, backend_key in mapping.items():
-                if frontend_key in params:
-                    try:
-                        val = float(params[frontend_key])
-                        adjusted_constants[comp_name][backend_key] = val
-                        print(f"[PARAM OVERRIDE] {comp_name}.{backend_key} = {val} (from modal)")
-                    except (ValueError, TypeError):
-                        print(f"[PARAM OVERRIDE] Skipping invalid value for {comp_name}.{backend_key}: {params[frontend_key]}")
-                
-            mapping = param_mapping.get(base_type, {})
 
+            # For regulators, also mirror writes onto the reg_key entry
+            # (e.g. "repressor_5") since circuit_model.py looks under start.reg_key
+            # in addition to start.label. comp_num is pair_id here, matching what
+            # circuit_model derives from start.reg_key.
             reg_key = None
-            regulator_types = ('repressor_start', 'repressor_end', 'activator_start', 'activator_end', 'inducer_start', 'inducer_end', 'inhibitor_start', 'inhibitor_end')
+            regulator_types = (
+                'repressor_start', 'repressor_end',
+                'activator_start', 'activator_end',
+                'inducer_start',   'inducer_end',
+                'inhibitor_start', 'inhibitor_end',
+            )
             if base_type in regulator_types:
                 reg_base = base_type.replace('_start', '').replace('_end', '')
                 reg_key = f"{reg_base}_{comp_num}"
                 if reg_key not in adjusted_constants:
                     adjusted_constants[reg_key] = {}
 
+            mapping = param_mapping.get(base_type, {})
             for frontend_key, backend_key in mapping.items():
                 if frontend_key in params:
                     try:
                         val = float(params[frontend_key])
                         adjusted_constants[comp_name][backend_key] = val
+                        print(f"[PARAM OVERRIDE] {comp_name}.{backend_key} = {val} (modal key '{frontend_key}', modal_num={modal_num}, comp_num={comp_num})")
                         if reg_key:
                             adjusted_constants[reg_key][backend_key] = val
-                        print(f"[PARAM OVERRIDE] {comp_name}.{backend_key} = {val} (from modal)")
-                        if reg_key:
-                            print(f"[PARAM OVERRIDE] Also applied to reg_key '{reg_key}'")
+                            print(f"[PARAM OVERRIDE] Mirrored to reg_key '{reg_key}'")
                     except (ValueError, TypeError):
                         print(f"[PARAM OVERRIDE] Skipping invalid value for {comp_name}.{backend_key}: {params[frontend_key]}")
-        
+
         # Create new builder with adjusted constants
         builder = OntologyBuilderUnified(adjusted_constants)
         

@@ -1294,19 +1294,31 @@ function syncRegulatorPair(sourceType, sourceNumber, paramId, newValue) {
         return;
     }
     
-    // Find the paired component with the same number
+    // Find the paired component. Prefer gene match (stable across board reads),
+    // fall back to number match (virtual-mode behavior). Use loose equality
+    // so x/y string-vs-number doesn't break this either.
     let pairedComponent = null;
-    
-    // First try to find in cellboard
-    if (state.cellboard && state.cellboard[targetType]) {
-        pairedComponent = state.cellboard[targetType].find(comp => comp.number === sourceNumber);
+    const sourceComp = (state.placedComponents || []).find(c =>
+        c.type === sourceType && c.number == sourceNumber
+    );
+    const sourceGene = sourceComp && sourceComp.gene;
+
+    const candidates = (state.placedComponents || []).filter(c => c.type === targetType);
+    if (sourceGene) {
+        pairedComponent = candidates.find(c => c.gene && c.gene === sourceGene);
     }
-    
-    // Also try placedComponents array
-    if (!pairedComponent && state.placedComponents) {
-        pairedComponent = state.placedComponents.find(comp => 
-            comp.type === targetType && comp.number === sourceNumber
+    if (!pairedComponent) {
+        pairedComponent = candidates.find(c => c.number == sourceNumber);
+    }
+    // Also reflect into state.cellboard for the partner so updateCellDisplay sees it
+    if (pairedComponent && state.cellboard && state.cellboard[targetType]) {
+        const cbPartner = state.cellboard[targetType].find(c =>
+            c.x == pairedComponent.x && c.y == pairedComponent.y
         );
+        if (cbPartner) {
+            if (!cbPartner.parameters) cbPartner.parameters = {};
+            cbPartner.parameters[paramId] = newValue;
+        }
     }
     
     if (pairedComponent) {
@@ -4257,10 +4269,12 @@ function createPlacedComponent(cell, component) {
     
     placedEl.style.backgroundColor = colors[component.type] || '#999';
     
-    // IMPORTANT: Add to state so simulation can find it
-    const x = cell.dataset.x;
-    const y = cell.dataset.y;
-    
+    // IMPORTANT: Add to state so simulation can find it.
+    // Coerce to integers so the (comp.x === x && comp.y === y) lookup
+    // at sim time matches — sim uses parseInt(cell.dataset.x).
+    const x = parseInt(cell.dataset.x, 10);
+    const y = parseInt(cell.dataset.y, 10);
+
     // Auto-increment component number based on type (like dial mode)
     const baseType = component.type.toLowerCase().replace(' ', '_');
     if (!state.componentCounts[baseType]) {
@@ -4282,11 +4296,17 @@ function createPlacedComponent(cell, component) {
     };
     
     state.placedComponents.push(stateComponent);
+
+    // Mirror into state.cellboard so updateCellDisplay (which looks up
+    // components there at lines 745-748) and other modules find this entry.
+    if (!state.cellboard) state.cellboard = {};
+    if (!state.cellboard[component.type]) state.cellboard[component.type] = [];
+    state.cellboard[component.type].push(stateComponent);
     
     // Add click event for parameter editing (CRITICAL FIX)
     placedEl.addEventListener('click', function(e) {
         e.stopPropagation();
-        showComponentParameterModal(x, y, component.type, state.componentCounts[baseType], stateComponent);
+        showComponentParameterModal(x, y, component.type, stateComponent.number, stateComponent);
     });
     
     placedEl.title = `${component.type} - Click to edit parameters`;
@@ -4660,8 +4680,9 @@ async function runSimulationFromPlacedComponents() {
         
         domComponents.forEach((el, i) => {
             const cell = el.parentElement;
-            const x = parseInt(cell.dataset.x);
-            const y = parseInt(cell.dataset.y);
+            // Adding to state so simulation can find it
+            const x = parseInt(cell.dataset.x, 10);
+            const y = parseInt(cell.dataset.y, 10);
             const componentType = el.dataset.componentType || el.dataset.component || el.textContent.split(' ')[0] || 'Unknown';
 
             if (!cellboard[componentType]) {
@@ -4679,26 +4700,43 @@ async function runSimulationFromPlacedComponents() {
             // Find the original component object with parameters
             let existingComponent = null;
             
-            // Check state.placedComponents first
+            // Check state.placedComponents first.
+            // Use loose equality (==) so this works whether x/y were stored as
+            // strings (legacy) or numbers (after the createPlacedComponent fix).
             if (state.placedComponents) {
-                existingComponent = state.placedComponents.find(comp => comp.x === x && comp.y === y);
+                existingComponent = state.placedComponents.find(comp => comp.x == x && comp.y == y);
             }
-            
-            // Check state.cellboard if not found
+
+            // Check state.cellboard if not found.
             if (!existingComponent && state.cellboard) {
                 for (const components of Object.values(state.cellboard)) {
-                    existingComponent = components.find(comp => comp.x === x && comp.y === y);
+                    existingComponent = components.find(comp => comp.x == x && comp.y == y);
                     if (existingComponent) break;
                 }
             }
-            
-            // Create component object with all properties including parameters
+
+            // Diagnostic: if still nothing, show what's in state to help debug.
+            if (!existingComponent) {
+                console.warn(`[LOOKUP MISS] No state entry for ${componentType} at (${x}, ${y}). ` +
+                    `state.placedComponents has ${(state.placedComponents || []).length} entries; ` +
+                    `state.cellboard types: ${state.cellboard ? Object.keys(state.cellboard).join(',') : 'none'}`);
+            }
+
+            // Create component object with all properties including parameters.
+            // IMPORTANT: reuse the number that was assigned to this component when it
+            // was placed (createPlacedComponent → stateComponent.number). That same
+            // number is what the parameter modal embedded into every param key, so the
+            // backend lookup (`f'cds{number}_degradation_rate' in params`) only matches
+            // when we send the *same* number back. Falling back to the DOM-walk counter
+            // is just a safety net for components that somehow have no state entry.
             const componentData = {
                 x: x,
                 y: y,
                 type: componentType,
                 strength: el.dataset.strength || 'norm',
-                number: componentCounts[baseType],
+                number: (existingComponent && existingComponent.number != null)
+                    ? existingComponent.number
+                    : componentCounts[baseType],
                 pair_id: (existingComponent && existingComponent.pair_id != null) ? existingComponent.pair_id : null
             };
             
