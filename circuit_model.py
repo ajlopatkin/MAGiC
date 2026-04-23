@@ -545,6 +545,22 @@ class OntologyBuilderUnified:
     
 
             if not starts or not ends:
+                # Record an issue so the user sees the unpaired regulator
+                # in circuit analysis instead of having it silently dropped.
+                if not starts and ends:
+                    for end in ends:
+                        self.regulator_issues.append({
+                            "label": end.label,
+                            "issue": f"Unpaired {rec['type']} END — no matching START.",
+                            "hint": f"Place a {rec['type']} START component (or draw an arrow to one) to complete the pair."
+                        })
+                elif not ends and starts:
+                    for start in starts:
+                        self.regulator_issues.append({
+                            "label": start.label,
+                            "issue": f"Unpaired {rec['type']} START — no matching END.",
+                            "hint": f"Place a {rec['type']} END after the promoter you want to regulate."
+                        })
                 continue
 
             for end in ends:
@@ -918,7 +934,24 @@ def simulate_circuit(builder: OntologyBuilderUnified, colormap: str = 'cool') ->
             degr = fb.get("degradation_rate", comp["parameters"]["degradation_rate"])
             
             # Numeric parameters matching working notebook - tuned for oscillations
-            kprod = prom_s * rbs_e * 1.0  # Balanced production rate for oscillations
+            trans_rate = comp["parameters"].get("translation_rate", 1.0)
+
+            # Find the first terminator placed AFTER this CDS in the same circuit.
+            # Multiple CDSes upstream of a single terminator all share its efficiency,
+            # which matches operon biology. Default 1.0 if no terminator follows.
+            cds_pos = next(
+                (idx for idx, c in enumerate(circ["components"]) if c["name"] == comp["name"]),
+                None
+            )
+            term_eff = 1.0
+            if cds_pos is not None:
+                for c in circ["components"][cds_pos + 1:]:
+                    if c["type"] == "terminator":
+                        term_eff = c["parameters"].get("efficiency", 1.0)
+                        break
+
+            
+            kprod = prom_s * rbs_e * trans_rate * term_eff # Balanced production rate for oscillations
             k0 = basal_constitutive if not regs_by_cds.get(cds_id) else 0.01
             
             cds_params[cds_id] = {
