@@ -336,6 +336,60 @@ async function clearBoard() {
         console.log('Board cleared successfully');
     }
 }
+// Create a clearboard function that doesn't have a pop up. This is ran when read board is ran
+function clearBoardSilent() {
+    console.log('=== CLEAR BOARD SILENT ===');
+    
+    // Clear connectors 
+    if (typeof ConnectorManagerEEPROM !== 'undefined') {
+        ConnectorManagerEEPROM.clearAll();
+    }
+
+    // Clear all placed components from the visual board
+    const placedComponents = document.querySelectorAll('.placed-component');
+    placedComponents.forEach(component => {
+        component.remove();
+    });
+    
+    // Clear filled state from cells
+    const cells = document.querySelectorAll('.cell');
+    cells.forEach(cell => {
+        cell.classList.remove('filled');
+        cell.classList.remove('has-component');
+        cell.innerHTML = '';
+    });
+    
+    // Reset state
+    state.placedComponents = [];
+    Object.keys(state.cellboard).forEach(key => {
+        state.cellboard[key] = [];
+    });
+    state.componentCounts = {};
+
+    // Clear any selection
+    clearComponentSelection();
+    
+    // Clear results
+    const plotContainer = document.getElementById('plot-container');
+    if (plotContainer) {
+        plotContainer.innerHTML = '<p class="text-center text-muted">Place components and run simulation to see results</p>';
+    }
+    
+    // Clear errors
+    const errorDisplay = document.getElementById('error-display');
+    if (errorDisplay) {
+        errorDisplay.style.display = 'none';
+        errorDisplay.textContent = '';
+    }
+    
+    // Remove stale dynamic parameter sections from sidebar
+    const dialAccordion = document.querySelector('.dial-accordion');
+    if (dialAccordion) {
+        dialAccordion.querySelectorAll('[id^="section_"]').forEach(section => section.remove());
+    }
+
+    console.log('Board cleared silently');
+}
 
 // Global reset parameters function (accessible by onclick)
 window.resetParameters = async function() {
@@ -3099,6 +3153,9 @@ async function readBoardConfiguration() {
         await showAlert("Please connect to a COM port first.");
         return;
     }
+
+    // Make sure the board is cleared first 
+    clearBoardSilent();
 
     // Disable button and show progress
     btnGetBoard.disabled = true;
