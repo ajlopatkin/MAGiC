@@ -2755,8 +2755,9 @@ async function connectToPort() {
         }
         
         // Run auto-scan after connection
-        logLine('Auto-scanning board...');
-        await readBoardConfigurationOnly();
+        // this to read the mux first when connecting to the port
+        /*logLine('Auto-scanning board...');*/
+        /*await readBoardConfigurationOnly();*/
         
         // ===== AFTER SCAN COMPLETE - CHANGE TO DARKER GREEN =====
         btnConnect.innerHTML = '<i class="fas fa-check me-2"></i>Connected';
@@ -3153,7 +3154,9 @@ async function readBoardConfiguration() {
         await showAlert("Please connect to a COM port first.");
         return;
     }
-
+    
+    LOG_LINES = [];           // Clear accumulated log lines
+    lineBuffer = '';          // Clear partial line buffer  
     // Make sure the board is cleared first 
     clearBoardSilent();
 
@@ -3218,7 +3221,7 @@ async function readBoardConfiguration() {
                 // Only retry if no hex data was captured from first attempt
 
                 // Currently second read is commented, may need to return if board stuggles with only one read
-                /*
+                
                 const hexLinesAfter = LOG_LINES.filter(line => line.match(/^\s*[0-9A-Fa-f]{2,4}:\s+(?:[0-9A-Fa-f]{2}\s+){8,}/)).length;
                 if (hexLinesAfter === hexLinesBefore) {
                     // No hex data from first attempt - try second attempt like August pattern
@@ -3226,7 +3229,7 @@ async function readBoardConfiguration() {
                     await sendCommand('hd 0 16');  // Use correct syntax with start address
                     await waitForHexDumpComplete(100);
                 }
-                    */
+                    
                 
             }
         }
@@ -3248,7 +3251,7 @@ async function readBoardConfiguration() {
     } finally {
         // Re-enable button
         btnGetBoard.disabled = false;
-        btnGetBoard.innerHTML = '<i class="fas fa-download me-2"></i>Read Circuit from Board';
+        btnGetBoard.innerHTML = '<i class="fas fa-download me-2"></i>Read Board';
     }
 }
 
