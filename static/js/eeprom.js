@@ -19,6 +19,125 @@ function formatComponentName(name) {
     return name;
 }
 
+// ===== ISSUES PANEL HELPERS =====
+function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, m => (
+        {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]
+    ));
+}
+
+function buildIssuesPanelHTML(result) {
+    const sections = [];
+
+    // 1. Top-level errors (from line-958 collector + simulate_circuit shape)
+    if (result.errors && result.errors.length > 0) {
+        sections.push(`
+            <div class="issue-group issue-error">
+                <h4>Errors (${result.errors.length})</h4>
+                <ul>${result.errors.map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul>
+            </div>
+        `);
+    }
+
+    // 2. Top-level warnings
+    if (result.warnings && result.warnings.length > 0) {
+        sections.push(`
+            <div class="issue-group issue-warning">
+                <h4>Warnings (${result.warnings.length})</h4>
+                <ul>${result.warnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}</ul>
+            </div>
+        `);
+    }
+
+    // 3. Regulator issues (severity-aware: inducer-as-activator etc.)
+    if (result.regulator_issues && result.regulator_issues.length > 0) {
+        const errs  = result.regulator_issues.filter(r => r && r.severity === 'error');
+        const warns = result.regulator_issues.filter(r => r && r.severity !== 'error');
+
+        if (errs.length > 0) {
+            sections.push(`
+                <div class="issue-group issue-error">
+                    <h4>Regulator Errors (${errs.length})</h4>
+                    <ul>${errs.map(r => `
+                        <li>
+                            <strong>${escapeHtml(r.label || 'regulator')}:</strong>
+                            ${escapeHtml(r.issue || 'invalid regulator')}
+                            ${r.hint ? `<br><em>${escapeHtml(r.hint)}</em>` : ''}
+                        </li>
+                    `).join('')}</ul>
+                </div>
+            `);
+        }
+        if (warns.length > 0) {
+            sections.push(`
+                <div class="issue-group issue-warning">
+                    <h4>Regulator Warnings (${warns.length})</h4>
+                    <ul>${warns.map(r => `
+                        <li>
+                            <strong>${escapeHtml(r.label || 'regulator')}:</strong>
+                            ${escapeHtml(r.issue || 'unpaired regulator')}
+                            ${r.hint ? `<br><em>${escapeHtml(r.hint)}</em>` : ''}
+                        </li>
+                    `).join('')}</ul>
+                </div>
+            `);
+        }
+    }
+
+    // 4. Unpaired regulators (always warnings per spec)
+    if (result.unpaired_regulators && result.unpaired_regulators.length > 0) {
+        sections.push(`
+            <div class="issue-group issue-warning">
+                <h4>Unpaired Regulators (${result.unpaired_regulators.length})</h4>
+                <ul>${result.unpaired_regulators.map(r => `
+                    <li>
+                        <strong>${escapeHtml(r.label || 'regulator')}:</strong>
+                        ${escapeHtml(r.issue || `unpaired ${r.type || 'regulator'}`)}
+                        ${r.hint ? `<br><em>${escapeHtml(r.hint)}</em>` : ''}
+                    </li>
+                `).join('')}</ul>
+            </div>
+        `);
+    }
+
+    // 5. Per-circuit errors (outside-cell violations + missing components)
+    const perCircuitWithErrors = (result.circuits || []).filter(
+        c => Array.isArray(c.errors) && c.errors.length > 0
+    );
+    if (perCircuitWithErrors.length > 0) {
+        sections.push(`
+            <div class="issue-group issue-error">
+                <h4>Per-Circuit Errors (${perCircuitWithErrors.length})</h4>
+                ${perCircuitWithErrors.map(c => `
+                    <div class="circuit-error-block">
+                        <strong>
+                            Circuit "${escapeHtml(c.name || 'Unnamed')}"
+                            ${c.modelable === false ? '<span class="badge-skip">(not modeled)</span>' : ''}
+                        </strong>
+                        <ul>${c.errors.map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul>
+                    </div>
+                `).join('')}
+            </div>
+        `);
+    }
+
+    if (sections.length === 0) {
+        return `
+            <div class="circuit-issues-panel issue-clean">
+                <h3>Circuit Issues</h3>
+                <p class="no-issues">No issues detected — all circuits parsed cleanly.</p>
+            </div>
+        `;
+    }
+
+    return `
+        <div class="circuit-issues-panel">
+            <h3>Circuit Issues</h3>
+            ${sections.join('')}
+        </div>
+    `;
+}
+
 // ===== COMPONENT SELECTION CONSTANTS =====
 const REGULATOR_TYPES = ['Repressor Start', 'Repressor End', 'Activator Start', 'Activator End', 
                         'Inducer Start', 'Inducer End', 'Inhibitor Start', 'Inhibitor End'];
@@ -3696,7 +3815,7 @@ async function runSimulationFromCellboard(cellboard) {
         console.log('Plot exists?', !!result.plot);
         console.log('plotContainer element:', plotContainer);
         
-        if (result.status === "success") {
+        if (result.status === "success" || result.status === "partial") {
             console.log('=== DISPLAYING RESULTS ===');
             logLine('Hardware circuit simulation completed successfully!');
             
@@ -4448,7 +4567,7 @@ async function runSimulationAfterPopulation() {
         
         const result = await response.json();
         
-        if (result.status === "success") {
+        if (result.status === "success" || result.status === "partial") {
             logLine('Simulation completed successfully!');
             
             // Display plot
@@ -4911,7 +5030,7 @@ async function runSimulationFromPlacedComponents() {
         const result = await response.json();
         console.log('Simulation result:', result);
 
-        if (result.status === 'success') {
+        if (result.status === 'success' || result.status === 'partial') {
             // Display results
             if (result.plot && plotContainer) {
                 // Clear and display full results
@@ -4998,6 +5117,146 @@ async function runSimulationFromPlacedComponents() {
                         </div>
                     `;
                     
+                    // ── Circuit Issues card (errors + regulator issues + unpaired) ──
+                    const issueRows = [];
+                
+
+                    // 0a. Top-level errors (from line-958 collector and other paths)
+                    if (Array.isArray(result.errors)) {
+                        result.errors.forEach(err => {
+                            issueRows.push({
+                                sev: 'error',
+                                label: 'Simulation',
+                                tag: 'ERROR',
+                                msg: err,
+                                hint: ''
+                            });
+                        });
+                    }
+
+                    // 0b. Top-level warnings
+                    if (Array.isArray(result.warnings)) {
+                        result.warnings.forEach(warn => {
+                            issueRows.push({
+                                sev: 'warning',
+                                label: 'Simulation',
+                                tag: 'WARNING',
+                                msg: warn,
+                                hint: ''
+                            });
+                        });
+                    }
+
+                    
+                    // 1. Per-circuit errors (e.g. components placed outside the cell)
+                    if (Array.isArray(result.circuits)) {
+                        result.circuits.forEach(c => {
+                            if (Array.isArray(c.errors) && c.errors.length > 0) {
+                                c.errors.forEach(err => {
+                                    issueRows.push({
+                                        sev: 'error',
+                                        label: c.name || 'Circuit',
+                                        tag: 'CIRCUIT ERROR',
+                                        msg: err,
+                                        hint: ''
+                                    });
+                                });
+                            }
+                        });
+                    }
+
+                    // 2. Regulator issues (errors + warnings)
+                    if (Array.isArray(result.regulator_issues)) {
+                        result.regulator_issues.forEach(ri => {
+                            issueRows.push({
+                                sev: ri.severity === 'error' ? 'error' : 'warning',
+                                label: ri.label || 'regulator',
+                                tag: ri.severity === 'error' ? 'ERROR' : 'WARNING',
+                                msg: ri.issue || '',
+                                hint: ri.hint || ''
+                            });
+                        });
+                    }
+
+                    // 3. Unpaired regulators (warnings)
+                    if (Array.isArray(result.unpaired_regulators)) {
+                        result.unpaired_regulators.forEach(reg => {
+                            issueRows.push({
+                                sev: 'warning',
+                                label: reg.label || 'regulator',
+                                tag: 'UNPAIRED',
+                                msg: reg.issue || `Unpaired ${reg.type || 'regulator'} (starts: ${reg.starts ?? '?'}, ends: ${reg.ends ?? '?'})`,
+                                hint: reg.hint || ''
+                            });
+                        });
+                    }
+
+                    if (issueRows.length > 0) {
+                        circuitDetailsHTML += `
+                            <div class="circuit-issues-card" style="margin-top:1rem; background:rgba(32,44,45,0.6); border:1px solid #2e4245; border-radius:8px; padding:1rem 1.25rem;">
+                                <h4 style="margin:0 0 0.75rem 0; color:#ffd166;"><i class="fas fa-exclamation-triangle"></i> Circuit Issues (${issueRows.length})</h4>
+                        `;
+                        issueRows.forEach(r => {
+                            const sevColor = r.sev === 'error' ? '#ff6b6b' : '#ffd166';
+                            const sevBg = r.sev === 'error' ? 'rgba(220,53,69,0.18)' : 'rgba(255,193,7,0.15)';
+                            const sevText = r.sev === 'error' ? '#ff8a93' : '#ffe588';
+                            const icon = r.sev === 'error' ? 'fa-circle-exclamation' : 'fa-triangle-exclamation';
+                            circuitDetailsHTML += `
+                                <div class="issue-item" style="background:rgba(255,255,255,0.04); border:1px solid #2e4245; border-left:3px solid ${sevColor}; border-radius:4px; padding:0.6rem 0.8rem; margin-bottom:0.5rem;">
+                                    <div style="display:flex; align-items:center; gap:0.5rem;">
+                                        <i class="fas ${icon}" style="color:${sevColor};"></i>
+                                        <strong>${r.label}</strong>
+                                        <span style="font-size:0.7rem; font-weight:700; padding:0.1rem 0.45rem; border-radius:3px; margin-left:0.4rem; background:${sevBg}; color:${sevText};">${r.tag}</span>
+                                    </div>
+                                    <div style="margin-top:0.35rem; color:#d8ede0;">${r.msg}</div>
+                                    ${r.hint ? `<div style="margin-top:0.25rem; font-size:0.85rem; opacity:0.75;"><em>${r.hint}</em></div>` : ''}
+                                </div>
+                            `;
+                        });
+                        circuitDetailsHTML += '</div>';
+                    }
+
+                    // ── Unassigned / Misplaced Components card ──
+                    const extraRows = [];
+                    if (Array.isArray(result.circuits)) {
+                        result.circuits.forEach(c => {
+                            if (Array.isArray(c.extras)) {
+                                c.extras.forEach(ex => extraRows.push({
+                                    label: ex.label || ex.type || 'component',
+                                    x: ex.x, y: ex.y,
+                                    tag: 'UNASSIGNED',
+                                    reason: ex.reason || `extra in ${c.name || 'circuit'}`
+                                }));
+                            }
+                            if (Array.isArray(c.misplaced)) {
+                                c.misplaced.forEach(mp => extraRows.push({
+                                    label: mp.label || mp.type || 'component',
+                                    x: mp.x, y: mp.y,
+                                    tag: 'MISPLACED',
+                                    reason: mp.reason || `misplaced in ${c.name || 'circuit'}`
+                                }));
+                            }
+                        });
+                    }
+
+                    if (extraRows.length > 0) {
+                        circuitDetailsHTML += `
+                            <div class="circuit-extras-card" style="margin-top:1rem; background:rgba(32,44,45,0.6); border:1px solid #2e4245; border-radius:8px; padding:1rem 1.25rem;">
+                                <h4 style="margin:0 0 0.75rem 0; color:#ff8a93;"><i class="fas fa-puzzle-piece"></i> Unassigned / Misplaced Components (${extraRows.length})</h4>
+                        `;
+                        extraRows.forEach(r => {
+                            circuitDetailsHTML += `
+                                <div class="extra-item" style="background:rgba(255,255,255,0.04); border:1px solid #2e4245; border-radius:4px; padding:0.6rem 0.8rem; margin-bottom:0.5rem;">
+                                    <strong>${r.label}</strong>
+                                    <span style="margin-left:0.5rem; opacity:0.75;">at (${r.x ?? '?'}, ${r.y ?? '?'})</span>
+                                    <span style="font-size:0.7rem; font-weight:700; padding:0.1rem 0.45rem; border-radius:3px; margin-left:0.5rem; background:rgba(255,193,7,0.15); color:#ffe588;">${r.tag}</span>
+                                    <div style="margin-top:0.3rem; font-size:0.88rem; color:#d8ede0;">${r.reason}</div>
+                                </div>
+                            `;
+                        });
+                        circuitDetailsHTML += '</div>';
+                    }
+
                     // Add detailed circuit breakdown
                     circuitDetailsHTML += '<div class="circuit-details">';
                     result.circuits.forEach((circuit, index) => {
@@ -5423,6 +5682,133 @@ async function runSimulationFromPlacedComponents() {
             }
             if (result.warnings && result.warnings.length > 0) {
                 console.warn('Simulation warnings:', result.warnings);
+            }
+            if (result.errors && result.errors.length > 0) {
+                console.error('Simulation errors:', result.errors);
+            }
+
+            // ── Populate the Circuit Issues panel (#circuit-issues) ──
+            // Sources: regulator_issues (with severity), unpaired_regulators,
+            // and per-circuit errors (e.g. components placed outside the cell).
+            const issuesPanel = document.getElementById('circuit-issues');
+            if (issuesPanel) {
+                const issueItems = [];
+
+                // 1. Regulator issues (errors and warnings)
+                if (Array.isArray(result.regulator_issues)) {
+                    result.regulator_issues.forEach(ri => {
+                        const sev = ri.severity === 'error' ? 'error' : 'warning';
+                        const icon = sev === 'error'
+                            ? '<i class="fas fa-circle-exclamation" style="color:#ff6b6b;"></i>'
+                            : '<i class="fas fa-triangle-exclamation" style="color:#ffd166;"></i>';
+                        const sevTag = `<span style="font-size:0.75rem; font-weight:700; padding:0.1rem 0.45rem; border-radius:3px; margin-left:0.5rem; background:${sev==='error' ? 'rgba(220,53,69,0.25)':'rgba(255,193,7,0.25)'}; color:${sev==='error' ? '#ff8a93':'#ffe588'};">${sev.toUpperCase()}</span>`;
+                        issueItems.push(
+                            `<div class="issue-item">
+                                <div style="display:flex; align-items:center; gap:0.5rem;">
+                                    ${icon}
+                                    <strong>${ri.label || 'regulator'}</strong>
+                                    ${sevTag}
+                                </div>
+                                <div style="margin-top:0.4rem;">${ri.issue || ''}</div>
+                                ${ri.hint ? `<div style="margin-top:0.3rem; font-size:0.85rem; opacity:0.8;"><em>${ri.hint}</em></div>` : ''}
+                            </div>`
+                        );
+                    });
+                }
+
+                // 2. Unpaired regulators (warnings)
+                if (Array.isArray(result.unpaired_regulators)) {
+                    result.unpaired_regulators.forEach(reg => {
+                        issueItems.push(
+                            `<div class="issue-item">
+                                <div style="display:flex; align-items:center; gap:0.5rem;">
+                                    <i class="fas fa-link-slash" style="color:#ffd166;"></i>
+                                    <strong>${reg.label || 'regulator'}</strong>
+                                    <span style="font-size:0.75rem; font-weight:700; padding:0.1rem 0.45rem; border-radius:3px; margin-left:0.5rem; background:rgba(255,193,7,0.25); color:#ffe588;">WARNING</span>
+                                </div>
+                                <div style="margin-top:0.4rem;">${reg.issue || `Unpaired ${reg.type || 'regulator'}`} (starts: ${reg.starts ?? '?'}, ends: ${reg.ends ?? '?'})</div>
+                                ${reg.hint ? `<div style="margin-top:0.3rem; font-size:0.85rem; opacity:0.8;"><em>${reg.hint}</em></div>` : ''}
+                            </div>`
+                        );
+                    });
+                }
+
+                // 3. Per-circuit errors (components outside the cell, etc.)
+                if (Array.isArray(result.circuits)) {
+                    result.circuits.forEach(c => {
+                        if (Array.isArray(c.errors) && c.errors.length > 0) {
+                            c.errors.forEach(err => {
+                                issueItems.push(
+                                    `<div class="issue-item">
+                                        <div style="display:flex; align-items:center; gap:0.5rem;">
+                                            <i class="fas fa-circle-exclamation" style="color:#ff6b6b;"></i>
+                                            <strong>${c.name}</strong>
+                                            <span style="font-size:0.75rem; font-weight:700; padding:0.1rem 0.45rem; border-radius:3px; margin-left:0.5rem; background:rgba(220,53,69,0.25); color:#ff8a93;">CIRCUIT ERROR</span>
+                                        </div>
+                                        <div style="margin-top:0.4rem;">${err}</div>
+                                    </div>`
+                                );
+                            });
+                        }
+                    });
+                }
+
+                if (issueItems.length > 0) {
+                    issuesPanel.innerHTML = issueItems.join('');
+                } else {
+                    // Restore the original empty-state placeholder
+                    issuesPanel.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-shield-alt text-muted"></i>
+                            <p>No issues detected</p>
+                        </div>`;
+                }
+            }
+
+            // ── Populate the Unassigned Components panel (#extra-components-list) ──
+            // Sources: per-circuit `extras` (components outside any circuit) and
+            // `misplaced` (e.g. promoter after CDS).
+            const extrasPanel = document.getElementById('extra-components-list');
+            if (extrasPanel) {
+                const extraItems = [];
+
+                if (Array.isArray(result.circuits)) {
+                    result.circuits.forEach(c => {
+                        if (Array.isArray(c.extras)) {
+                            c.extras.forEach(ex => {
+                                extraItems.push(
+                                    `<div class="extra-item">
+                                        <strong>${ex.label || ex.type || 'component'}</strong>
+                                        <span style="margin-left:0.5rem; opacity:0.7;">at (${ex.x ?? '?'}, ${ex.y ?? '?'})</span>
+                                        <div style="margin-top:0.3rem; font-size:0.88rem;">${ex.reason || 'extra in ' + (c.name || 'circuit')}</div>
+                                    </div>`
+                                );
+                            });
+                        }
+                        if (Array.isArray(c.misplaced)) {
+                            c.misplaced.forEach(mp => {
+                                extraItems.push(
+                                    `<div class="extra-item">
+                                        <strong>${mp.label || mp.type || 'component'}</strong>
+                                        <span style="margin-left:0.5rem; opacity:0.7;">at (${mp.x ?? '?'}, ${mp.y ?? '?'})</span>
+                                        <span style="font-size:0.75rem; font-weight:700; padding:0.1rem 0.45rem; border-radius:3px; margin-left:0.5rem; background:rgba(255,193,7,0.25); color:#ffe588;">MISPLACED</span>
+                                        <div style="margin-top:0.3rem; font-size:0.88rem;">${mp.reason || 'misplaced in ' + (c.name || 'circuit')}</div>
+                                    </div>`
+                                );
+                            });
+                        }
+                    });
+                }
+
+                if (extraItems.length > 0) {
+                    extrasPanel.innerHTML = extraItems.join('');
+                } else {
+                    extrasPanel.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-puzzle-piece text-muted"></i>
+                            <p>All components are properly assigned</p>
+                        </div>`;
+                }
             }
 
         } else {

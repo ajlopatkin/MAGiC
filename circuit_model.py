@@ -334,6 +334,29 @@ class OntologyBuilderUnified:
             elif t == "terminator" and type_counts["cds"] == 0:
                 misplaced.append({**comp.to_dict(), "reason": "Terminator before CDS"})
 
+
+        # ── Outside-cell detection (per-circuit error) ──────────────────────
+        # Only inducers and inhibitors are allowed at the membrane edges
+        # (grid_x in {0,9} or grid_y in {0,9}). Any other component placed there
+        # makes the whole circuit non-modelable and gets surfaced per-circuit
+        # so other clean circuits can still simulate.
+        outside_cell_violations = []
+        for comp in comps:
+            if comp.type in ("inducer", "inhibitor"):
+                continue
+            if comp.is_outside_cell:
+                outside_cell_violations.append({
+                    "label": comp.label,
+                    "type": comp.type,
+                    "x": comp.grid_x,
+                    "y": comp.grid_y,
+                    "reason": (
+                        f"{comp.type} placed outside the cell at "
+                        f"({comp.grid_x}, {comp.grid_y}) — only inducers and "
+                        f"inhibitors may sit at the membrane edge"
+                    )
+                })
+
         # After processing all components, detect extras
         cds_count = type_counts["cds"]
         rbs_count = type_counts["rbs"]
@@ -394,12 +417,21 @@ class OntologyBuilderUnified:
             if fallbacks:
                 fallback_by_cds[cds_comp.label] = fallbacks
 
-        # Create circuit dict
+        
+        # Create circuit dict (with per-circuit errors + modelable flag)
+        circuit_errors = []
+        if outside_cell_violations:
+            for v in outside_cell_violations:
+                circuit_errors.append(v["reason"])
+
         circuit_dict = {
             "name": name,
             "components": [c.to_dict() for c in comps],
             "extras": extras,
             "misplaced": misplaced,
+            "outside_cell_violations": outside_cell_violations,
+            "errors": circuit_errors,
+            "modelable": len(circuit_errors) == 0,
             "component_counts": dict(type_counts),
             "fallback_by_cds": fallback_by_cds
         }
@@ -536,13 +568,48 @@ class OntologyBuilderUnified:
 
             any_outside = any(comp.is_outside_cell for comp in starts + ends) if (starts and ends) else False
             start_in_no_circuit = any(comp.circuit_name is None for comp in starts) if starts else False
-            
+            any_start_outside = any(c.is_outside_cell for c in starts) if starts else False
+            any_end_outside   = any(c.is_outside_cell for c in ends)   if ends   else False
+
             if rec["type"] in ("inducer", "inhibitor") and (any_outside or start_in_no_circuit):
                 rec["is_floating"] = True
-
                 print(f"🌍 EXTERNAL {rec['type'].upper()} DETECTED: {key}")
                 print(f"   Positions: starts={[(c.grid_x, c.grid_y) for c in starts]}, ends={[(c.grid_x, c.grid_y) for c in ends]}")
-    
+
+            # ── Convention errors: act/rep cannot be floating; ind/inh MUST be ──
+            #
+            # Activator / Repressor: both start AND end must be inside the cell
+            # (after the source CDS for start, after the target promoter for end).
+            # If a user places either piece outside the membrane they are trying
+            # to use it like an inducer/inhibitor → error and skip building this
+            # regulation entirely so the simulation does NOT silently treat it as
+            # a normal (cross-circuit) regulator.
+                        # Activator/Repressor must NOT be outside the cell
+            if rec["type"] in ("activator", "repressor") and (any_start_outside or any_end_outside):
+                bad = [f"{c.label} at ({c.grid_x},{c.grid_y})" for c in starts + ends if c.is_outside_cell]
+                self.regulator_issues.append({
+                    "label": key,
+                    "severity": "error",
+                    "issue": (f"{rec['type'].title()} placed outside the cell — activators and repressors "
+                              f"must stay inside the cell membrane. Misplaced: {', '.join(bad)}."),
+                    "hint": (f"Move the {rec['type']} start/end inside cell membrane (x=1–8, y=1–8). "
+                             f"To have a freely-diffusing signal, use an inducer or inhibitor instead.")
+                })
+                continue   # skip — circuit models constitutively for this gene
+
+            # Inducer/Inhibitor must BE floating (start outside cell)
+            if rec["type"] in ("inducer", "inhibitor") and starts and ends and not rec["is_floating"]:
+                self.regulator_issues.append({
+                    "label": key,
+                    "severity": "error",
+                    "issue": (f"{rec['type'].title()} placed inside the cell — inducers and inhibitors "
+                              f"must originate outside the membrane. "
+                              f"Start positions: {[(c.grid_x, c.grid_y) for c in starts]}."),
+                    "hint": (f"Move the {rec['type']} start to a position outside of the cell membrane. (x=0, x=9, y=0, or y=9). "
+                             f"Its end should remain inside, immediately after the promoter you want it to regulate.")
+                })
+                continue   # skip — circuit models constitutively for this gene
+
 
             if not starts or not ends:
                 # Record an issue so the user sees the unpaired regulator
@@ -551,6 +618,7 @@ class OntologyBuilderUnified:
                     for end in ends:
                         self.regulator_issues.append({
                             "label": end.label,
+                            "severity": "warning",
                             "issue": f"Unpaired {rec['type']} END — no matching START.",
                             "hint": f"Place a {rec['type']} START component (or draw an arrow to one) to complete the pair."
                         })
@@ -558,6 +626,7 @@ class OntologyBuilderUnified:
                     for start in starts:
                         self.regulator_issues.append({
                             "label": start.label,
+                            "severity": "warning",
                             "issue": f"Unpaired {rec['type']} START — no matching END.",
                             "hint": f"Place a {rec['type']} END after the promoter you want to regulate."
                         })
@@ -568,6 +637,7 @@ class OntologyBuilderUnified:
                 if not prom_prev or prom_prev.type != "promoter":
                     self.regulator_issues.append({
                         "label": end.label,
+                        "severity": "error",
                         "issue": "Regulator end not immediately after promoter.",
                         "hint": "Place regulator end after the promoter you want to regulate!"
                     })
@@ -579,6 +649,7 @@ class OntologyBuilderUnified:
                     if rec["is_floating"] and start.circuit_name is not None:
                         self.regulator_issues.append({
                             "label": start.label,
+                            "severity": "error",
                             "issue": "Floating start inside circuit.",
                             "hint": "Move floating regulator's start to be outside of all circuits!"
                         })
@@ -589,6 +660,7 @@ class OntologyBuilderUnified:
                         if not src_prev or src_prev.type != "cds":
                             self.regulator_issues.append({
                                 "label": start.label,
+                                "severity": "error",
                                 "issue": "Regulator start does not follow a CDS.",
                                 "hint": "Place regulator start after the CDS you want to be the source!"
                             })
@@ -858,28 +930,89 @@ def simulate_circuit(builder: OntologyBuilderUnified, colormap: str = 'cool') ->
                 id2circ[cds_id] = circ
 
         if not cds_list:
-            # Return empty plot if no CDS found
-            plt.figure(figsize=(10, 6))
-            plt.text(0.5, 0.5, 'No CDS components found', ha='center', va='center', transform=plt.gca().transAxes)
-            plt.xlabel('Time (hours)')
-            plt.ylabel('Protein Concentration (μM)')
-            plt.title('Genetic Circuit Simulation - No Data')
+            # Decide message based on whether the empty cds_list is from placement
+            # errors (circuits exist but were skipped) vs a truly empty board.
+            non_modelable = [c for c in builder.circuits if not c.get("modelable", True)]
+            if non_modelable:
+                placeholder_msg = (
+                    "No circuits could be modeled — every circuit has a "
+                    "placement issue.\nSee 'Circuit Issues' below to fix."
+                )
+                placeholder_title = "Genetic Circuit Simulation — Not Modelable"
+            else:
+                placeholder_msg = "No CDS components found"
+                placeholder_title = "Genetic Circuit Simulation — No Data"
             
+            _PBG = '#202c2d'
+            _ABG = '#192225'
+            _TXT = '#d8ede0'
+            _GRD = '#2e4245'
+            _SPN = '#3a5558'
+            fig, ax = plt.subplots(figsize=(10, 6))
+            fig.patch.set_facecolor(_PBG)
+            ax.set_facecolor(_ABG)
+            for spine in ax.spines.values():
+                spine.set_edgecolor(_SPN)
+            ax.tick_params(colors=_TXT)
+            ax.xaxis.label.set_color(_TXT)
+            ax.yaxis.label.set_color(_TXT)
+            ax.title.set_color(_TXT)
+            ax.set_xlabel('Time (hours)')
+            ax.set_ylabel('Protein Concentration (μM)')
+            ax.set_title(placeholder_title)
+            ax.text(0.5, 0.5, placeholder_msg,
+                    ha='center', va='center', transform=ax.transAxes,
+                    fontsize=12, color=_TXT,
+                    bbox=dict(boxstyle='round,pad=0.6', facecolor=_SPN,
+                              edgecolor=_GRD, alpha=0.85))
+            ax.grid(True, color=_GRD, linewidth=0.5, linestyle='--', alpha=0.5)
+
             # Convert to base64
             import io, base64
             buffer = io.BytesIO()
-            plt.savefig(buffer, format='png', dpi=150, bbox_inches='tight')
+            fig.savefig(buffer, format='png', dpi=150, bbox_inches='tight',
+                        facecolor=_PBG)
             buffer.seek(0)
             plot_data = base64.b64encode(buffer.getvalue()).decode()
-            plt.close()
+            plt.close(fig)
+
             
+            # Collect per-circuit errors so the frontend can explain why nothing modeled
+            top_level_errors = []
+            top_level_warnings = []
+            for c in builder.circuits:
+                for e in c.get("errors", []):
+                    top_level_errors.append(f"Circuit '{c['name']}': {e}")
+            for ri in builder.regulator_issues:
+                if isinstance(ri, dict):
+                    label = ri.get('label', 'regulator')
+                    msg = ri.get('issue', str(ri))
+                    hint = ri.get('hint', '')
+                    text = f"{label}: {msg}" + (f" ({hint})" if hint else "")
+                    if ri.get('severity') == 'error':
+                        top_level_errors.append(text)
+                    else:
+                        top_level_warnings.append(text)
+            for reg in builder.unpaired_regulators:
+                if isinstance(reg, dict):
+                    label = reg.get('label', 'regulator')
+                    issue = reg.get('issue', f"unpaired {reg.get('type', 'regulator')}")
+                    hint = reg.get('hint', '')
+                    text = f"{label}: {issue}" + (f" ({hint})" if hint else "")
+                    top_level_warnings.append(text)
+
             return {
+                'status': 'partial' if top_level_errors else 'success',
                 'plot': plot_data,
                 'time_series': {'time': [], 'Protein A': []},
                 'circuits': builder.circuits,
                 'regulations': builder.regulations,
-                'errors': [],
-                'warnings': []
+                'regulator_issues': builder.regulator_issues,
+                'unpaired_regulators': builder.unpaired_regulators,
+                'components_analyzed': sum(len(c.get('components', [])) for c in builder.circuits),
+                'errors': top_level_errors,
+                'warnings': top_level_warnings,
+                'message': 'No modelable circuits — see errors below' if top_level_errors else 'No CDS components found'
             }
         
         # Build name→ID mapping for all components (your logic)
@@ -1061,6 +1194,81 @@ def simulate_circuit(builder: OntologyBuilderUnified, colormap: str = 'cool') ->
         
         t = np.linspace(0, 24, 200)  # 0-24 hours as requested
         
+        # Defensive guard: if no proteins/cds survived the modelable filter,
+        # short-circuit before odeint and the downstream `i % n_proteins` math.
+        if not cds_list or len(p0) == 0:
+            top_level_errors = []
+            top_level_warnings = []
+            for c in builder.circuits:
+                for e in c.get("errors", []):
+                    top_level_errors.append(f"Circuit '{c['name']}': {e}")
+            for ri in builder.regulator_issues:
+                if isinstance(ri, dict):
+                    label = ri.get('label', 'regulator')
+                    msg = ri.get('issue', str(ri))
+                    hint = ri.get('hint', '')
+                    text = f"{label}: {msg}" + (f" ({hint})" if hint else "")
+                    if ri.get('severity') == 'error':
+                        top_level_errors.append(text)
+                    else:
+                        top_level_warnings.append(text)
+            for reg in builder.unpaired_regulators:
+                if isinstance(reg, dict):
+                    label = reg.get('label', 'regulator')
+                    issue = reg.get('issue', f"unpaired {reg.get('type', 'regulator')}")
+                    hint = reg.get('hint', '')
+                    top_level_warnings.append(
+                        f"{label}: {issue}" + (f" ({hint})" if hint else "")
+                    )
+
+                # Styled placeholder plot — matches dark panel aesthetic
+                _PBG  = '#202c2d'
+                _ABG  = '#192225'
+                _TXT  = '#d8ede0'
+                _GRD  = '#2e4245'
+                _SPN  = '#3a5558'
+                fig, ax = plt.subplots(figsize=(10, 6))
+                fig.patch.set_facecolor(_PBG)
+                ax.set_facecolor(_ABG)
+                for spine in ax.spines.values():
+                    spine.set_edgecolor(_SPN)
+                ax.tick_params(colors=_TXT)
+                ax.xaxis.label.set_color(_TXT)
+                ax.yaxis.label.set_color(_TXT)
+                ax.title.set_color(_TXT)
+                ax.set_xlabel('Time (hours)')
+                ax.set_ylabel('Protein Concentration (μM)')
+                ax.set_title('Genetic Circuit Simulation — Not Modelable')
+                ax.text(0.5, 0.5,
+                        "No circuits could be modeled\n— see Circuit Issues below —",
+                        ha='center', va='center', transform=ax.transAxes,
+                        fontsize=13, color=_TXT,
+                        bbox=dict(boxstyle='round,pad=0.6', facecolor=_SPN, edgecolor=_GRD, alpha=0.8))
+                ax.grid(True, color=_GRD, linewidth=0.5, linestyle='--', alpha=0.5)
+                buf = io.BytesIO()
+                fig.savefig(buf, format='png', bbox_inches='tight', dpi=80,
+                            facecolor=_PBG)
+                plt.close(fig)
+                buf.seek(0)
+                plot_data_local = base64.b64encode(buf.read()).decode('utf-8')
+
+
+            return {
+                'status': 'partial' if top_level_errors else 'success',
+                'plot': plot_data_local,
+                'time_series': {'time': [], 'Protein A': []},
+                'circuits': builder.circuits,
+                'regulations': builder.regulations,
+                'regulator_issues': builder.regulator_issues,
+                'unpaired_regulators': builder.unpaired_regulators,
+                'components_analyzed': sum(len(c.get('components', [])) for c in builder.circuits),
+                'errors': top_level_errors,
+                'warnings': top_level_warnings,
+                'message': 'No modelable circuits — see issues below'
+                           if top_level_errors else 'No CDS components found'
+            }
+
+        
         # Solve ODE
         sol = odeint(rhs, p0, t)
         
@@ -1185,29 +1393,64 @@ def simulate_circuit(builder: OntologyBuilderUnified, colormap: str = 'cool') ->
             cds_name = comp['name']
             protein_mapping[display_names[i]] = cds_name
         
+        # Determine overall status: partial if some circuits were skipped due to errors
+        skipped_circuits = [c for c in builder.circuits if not c.get("modelable", True)]
+        modeled_circuits = [c for c in builder.circuits if c.get("modelable", True)]
+        if skipped_circuits and modeled_circuits:
+            overall_status = 'partial'
+        elif skipped_circuits and not modeled_circuits:
+            overall_status = 'error' if not cds_list else 'partial'
+        else:
+            overall_status = 'success'
+
+        # Top-level errors collected from any per-circuit errors
+        top_level_errors = []
+        for c in skipped_circuits:
+            for e in c.get("errors", []):
+        
+                top_level_errors.append(f"Circuit '{c['name']}': {e}")
+        
         result = {
-            'status': 'success',
-            'plot': plot_base64,
-            'time_series': time_series,
-            'final_concentrations': final_concentrations,
-            'protein_mapping': protein_mapping,
-            'circuits': builder.circuits,
-            'regulations': builder.regulations,
-            'regulator_issues': builder.regulator_issues,
-            'unpaired_regulators': builder.unpaired_regulators,
-            'extra_components': builder.extra_components_found,
-            'debug_info': debug_info,
-            'errors': [],
-            'warnings': []
-        }
+                'status': overall_status,
+                'plot': plot_base64,
+                'time_series': time_series,
+                'final_concentrations': final_concentrations,
+                'protein_mapping': protein_mapping,
+                'circuits': builder.circuits,
+                'regulations': builder.regulations,
+                'regulator_issues': builder.regulator_issues,
+                'unpaired_regulators': builder.unpaired_regulators,
+                'extra_components': builder.extra_components_found,
+                'debug_info': debug_info,
+                'errors': [],
+                'warnings': []
+            }
         
-        # Add warnings for issues
-        if builder.regulator_issues:
-            result['warnings'].extend([f"Regulator issue: {issue}" for issue in builder.regulator_issues])
-        
-        if builder.unpaired_regulators:
-            result['warnings'].extend([f"Unpaired regulator: {reg}" for reg in builder.unpaired_regulators])
-        
+        # Split regulator_issues by severity → errors vs warnings, with proper formatting
+        for ri in builder.regulator_issues:
+            if isinstance(ri, dict):
+                label = ri.get('label', 'regulator')
+                msg = ri.get('issue', str(ri))
+                hint = ri.get('hint', '')
+                text = f"{label}: {msg}" + (f" ({hint})" if hint else "")
+                if ri.get('severity') == 'error':
+                    result['errors'].append(text)
+                else:
+                    result['warnings'].append(text)
+            else:
+                result['warnings'].append(f"Regulator issue: {ri}")
+
+        # Unpaired regulators stay as warnings per spec
+        for reg in builder.unpaired_regulators:
+            if isinstance(reg, dict):
+                label = reg.get('label', 'regulator')
+                issue = reg.get('issue', f"unpaired {reg.get('type', 'regulator')}")
+                hint = reg.get('hint', '')
+                text = f"{label}: {issue}" + (f" ({hint})" if hint else "")
+                result['warnings'].append(text)
+            else:
+                result['warnings'].append(f"Unpaired regulator: {reg}")
+
         # Build export data for standalone script generation
         export_regulations = []
         for i, cds_id in enumerate(cds_list):
@@ -1258,7 +1501,7 @@ def simulate_circuit(builder: OntologyBuilderUnified, colormap: str = 'cool') ->
         return result
     
     except Exception as e:
-        logging.error(f"Circuit simulation error: {str(e)}")
+        logging.exception(f"Circuit simulation error: {str(e)}")
         return {
             'status': 'error',
             'message': f'Circuit analysis failed: {str(e)}',

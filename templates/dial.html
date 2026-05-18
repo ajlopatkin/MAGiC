@@ -550,6 +550,79 @@
                         </div>
                     </div>
                 </div>
+                
+                <!-- How-To panel for Board Mode -->
+                <aside class="how-to-panel">
+                    <details open class="how-to-details">
+                        <summary class="how-to-summary">
+                            <i class="fas fa-circle-info"></i>
+                            How to use the Cell Board
+                        </summary>
+                        <div class="how-to-body">
+                            <section>
+                                <h4>1. Build your circuit on the physical board</h4>
+                                <p>Place components on the hardware in the order you want them transcribed: Promoter → RBS → CDS → Terminator. Add regulators (activator/repressor/inducer/inhibitor) as needed.</p>
+                            </section>
+
+                            <section>
+                                <h4>2. Component placement rules</h4>
+                                <ul>
+                                    <li><strong>Inside the cell</strong> (cells 1–8 on both axes): all "core" components — promoter, RBS, CDS, terminator — and activator/repressor pairs.</li>
+                                    <li><strong>Outside the cell</strong> (the edge cells where x or y is 0 or 9): <em>only</em> inducer and inhibitor <strong>starts</strong>. Their <strong>ends</strong> still go inside, right after the promoter they regulate.</li>
+                                    <li>A new promoter after a CDS begins a new circuit.</li>
+                                </ul>
+                            </section>
+
+                            <section>
+                                <h4>3. Regulator convention</h4>
+                                <ul>
+                                    <li><strong>Activator / Repressor:</strong> STARTs goes after the source CDS (inside its circuit). ENDs goes after the target promoter (can be in the same circuit or another circuit). Both must exist as parts of circuits placed inside the cell.</li>
+                                    <li><strong>Inducer / Inhibitor:</strong> STARTs sits outside the cell (STARTs represent the concentration of a substance existing outside of the cell membrane). ENDs go after the target promoter inside the cell. Use <em>concentration</em> to set amount.</li>
+                                    <li>Use the connector arrows on the board to pair each START to its matching END.</li>
+                                </ul>
+                            </section>
+
+                            <section>
+                                <h4>4. Connect to the hardware</h4>
+                                <ol>
+                                    <li>Open the hamburger menu (top-left).</li>
+                                    <li>Press <strong>Refresh Ports</strong>.</li>
+                                    <li>Select the correct USB port.</li>
+                                    <li>Press <strong>Connect</strong> and wait for the connection log to confirm.</li>
+                                    <li>Close the menu and return to the main board view.</li>
+                                </ol>
+                            </section>
+
+                            <section>
+                                <h4>5. Read the board and simulate</h4>
+                                <ol>
+                                    <li>Press <strong>Read Board</strong> to pull the current configuration into the on-screen grid.</li>
+                                    <li>Click any placed component to open its parameters modal (Kr, Ka, n, strength, efficiency, etc.). Edit, then click Apply to save your changes.</li>
+                                    <li>Press <strong>Run Simulation</strong> to see protein concentration over time.</li>
+                                </ol>
+                            </section>
+
+                            <section>
+                                <h4>6. Editing &amp; removing components</h4>
+                                <ul>
+                                    <li><strong>Drag</strong> a component from the palette into a cell to place it.</li>
+                                    <li><strong>Drag</strong> a placed component back into the palette (or right-click → Remove) to delete it.</li>
+                                    <li><strong>Click</strong> a placed component to edit its parameters or custom name.</li>
+                                    <li>Use <strong>Clear Board</strong> to remove everything at once.</li>
+                                </ul>
+                            </section>
+
+                            <section>
+                                <h4>7. Reading errors &amp; warnings</h4>
+                                <ul>
+                                    <li><strong>Errors</strong> (red) stop the affected circuit from being simulated — usually a misplaced component or a misused regulator type.</li>
+                                    <li><strong>Warnings</strong> (yellow) include unpaired regulators or missing recommended components — the simulation still runs.</li>
+                                    <li>Other circuits on the board continue to simulate even when one circuit has errors.</li>
+                                </ul>
+                            </section>
+                        </div>
+                    </details>
+                </aside>
 
                 <!-- Results -->
                 <div class="results">

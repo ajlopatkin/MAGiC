@@ -3177,6 +3177,114 @@ header.text-center:not(.page-header) .lead {
     transform: scale(1.2);
 }
 
+/* ── How-To panel (sits beside the cell-board in both Board and Virtual mode) ── */
+.main-content .how-to-panel {
+    background: rgba(32, 44, 45);
+    border: 3px solid transparent;
+    border-radius: var(--border-radius);
+    padding: 1.25rem 1.5rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-top: 1.25rem;
+    color: #d8ede0;
+    max-width: 1100px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.main-content .how-to-panel .how-to-summary {
+    cursor: pointer;
+    list-style: none;
+    color: #B2F35F;
+    font-size: 1.1rem;
+    font-weight: 600;
+    padding: 0.25rem 0;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.main-content .how-to-panel .how-to-summary::-webkit-details-marker {
+    display: none;
+}
+
+.main-content .how-to-panel .how-to-summary::after {
+    content: "▾";
+    margin-left: auto;
+    transition: transform 0.2s ease;
+    color: #9ca3af;
+    font-size: 0.9rem;
+}
+
+.main-content .how-to-panel details:not([open]) .how-to-summary::after {
+    transform: rotate(-90deg);
+}
+
+.main-content .how-to-panel .how-to-body {
+    margin-top: 1rem;
+    border-top: 1px solid #2e4245;
+    padding-top: 1rem;
+    line-height: 1.55;
+    font-size: 0.92rem;
+}
+
+.main-content .how-to-panel section { margin-bottom: 1.1rem; }
+.main-content .how-to-panel section:last-child { margin-bottom: 0; }
+
+.main-content .how-to-panel h4 {
+    color: white;
+    font-size: 0.98rem;
+    margin: 0 0 0.4rem 0;
+    font-weight: 600;
+}
+
+.main-content .how-to-panel ul,
+.main-content .how-to-panel ol {
+    margin: 0.25rem 0 0.25rem 1.2rem;
+    padding: 0;
+}
+
+.main-content .how-to-panel li { margin-bottom: 0.25rem; }
+.main-content .how-to-panel strong { color: #B2F35F; }
+.main-content .how-to-panel em { color: #cfe8d4; font-style: italic; }
+
+/* ===== Circuit Issues Panel ===== */
+.circuit-issues-panel {
+    background: #fafbfc;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin: 12px 0;
+}
+.circuit-issues-panel h3 {
+    margin: 0 0 10px 0;
+    font-size: 1.05em;
+    color: #1f2937;
+}
+.circuit-issues-panel h4 {
+    margin: 8px 0 4px 0;
+    font-size: 0.95em;
+}
+.circuit-issues-panel ul {
+    margin: 4px 0 8px 0;
+    padding-left: 22px;
+}
+.circuit-issues-panel li { margin-bottom: 4px; line-height: 1.4; }
+.circuit-issues-panel em { color: #6b7280; font-size: 0.9em; }
+
+.issue-error  { border-left: 4px solid #dc2626; padding-left: 10px; margin: 6px 0; }
+.issue-error  h4 { color: #b91c1c; }
+.issue-warning { border-left: 4px solid #f59e0b; padding-left: 10px; margin: 6px 0; }
+.issue-warning h4 { color: #b45309; }
+.issue-clean .no-issues { color: #16a34a; margin: 0; }
+
+.circuit-error-block { margin: 6px 0 10px 0; }
+.badge-skip {
+    display: inline-block; padding: 1px 6px; margin-left: 6px;
+    background: #fee2e2; color: #b91c1c; border-radius: 3px;
+    font-size: 0.78em; font-weight: 500;
+}
+
 /* Output Port - Top Right for Start components */
 
 /*

@@ -18,6 +18,121 @@ function formatComponentName(name) {
     return name;
 }
 
+
+// ===== ISSUES PANEL HELPERS =====
+function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, m => (
+        {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]
+    ));
+}
+
+function buildIssuesPanelHTML(result) {
+    const sections = [];
+
+    if (result.errors && result.errors.length > 0) {
+        sections.push(`
+            <div class="issue-group issue-error">
+                <h4>Errors (${result.errors.length})</h4>
+                <ul>${result.errors.map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul>
+            </div>
+        `);
+    }
+
+    if (result.warnings && result.warnings.length > 0) {
+        sections.push(`
+            <div class="issue-group issue-warning">
+                <h4>Warnings (${result.warnings.length})</h4>
+                <ul>${result.warnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}</ul>
+            </div>
+        `);
+    }
+
+    if (result.regulator_issues && result.regulator_issues.length > 0) {
+        const errs  = result.regulator_issues.filter(r => r && r.severity === 'error');
+        const warns = result.regulator_issues.filter(r => r && r.severity !== 'error');
+
+        if (errs.length > 0) {
+            sections.push(`
+                <div class="issue-group issue-error">
+                    <h4>Regulator Errors (${errs.length})</h4>
+                    <ul>${errs.map(r => `
+                        <li>
+                            <strong>${escapeHtml(r.label || 'regulator')}:</strong>
+                            ${escapeHtml(r.issue || 'invalid regulator')}
+                            ${r.hint ? `<br><em>${escapeHtml(r.hint)}</em>` : ''}
+                        </li>
+                    `).join('')}</ul>
+                </div>
+            `);
+        }
+        if (warns.length > 0) {
+            sections.push(`
+                <div class="issue-group issue-warning">
+                    <h4>Regulator Warnings (${warns.length})</h4>
+                    <ul>${warns.map(r => `
+                        <li>
+                            <strong>${escapeHtml(r.label || 'regulator')}:</strong>
+                            ${escapeHtml(r.issue || 'unpaired regulator')}
+                            ${r.hint ? `<br><em>${escapeHtml(r.hint)}</em>` : ''}
+                        </li>
+                    `).join('')}</ul>
+                </div>
+            `);
+        }
+    }
+
+    if (result.unpaired_regulators && result.unpaired_regulators.length > 0) {
+        sections.push(`
+            <div class="issue-group issue-warning">
+                <h4>Unpaired Regulators (${result.unpaired_regulators.length})</h4>
+                <ul>${result.unpaired_regulators.map(r => `
+                    <li>
+                        <strong>${escapeHtml(r.label || 'regulator')}:</strong>
+                        ${escapeHtml(r.issue || `unpaired ${r.type || 'regulator'}`)}
+                        ${r.hint ? `<br><em>${escapeHtml(r.hint)}</em>` : ''}
+                    </li>
+                `).join('')}</ul>
+            </div>
+        `);
+    }
+
+    const perCircuitWithErrors = (result.circuits || []).filter(
+        c => Array.isArray(c.errors) && c.errors.length > 0
+    );
+    if (perCircuitWithErrors.length > 0) {
+        sections.push(`
+            <div class="issue-group issue-error">
+                <h4>Per-Circuit Errors (${perCircuitWithErrors.length})</h4>
+                ${perCircuitWithErrors.map(c => `
+                    <div class="circuit-error-block">
+                        <strong>
+                            Circuit "${escapeHtml(c.name || 'Unnamed')}"
+                            ${c.modelable === false ? '<span class="badge-skip">(not modeled)</span>' : ''}
+                        </strong>
+                        <ul>${c.errors.map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul>
+                    </div>
+                `).join('')}
+            </div>
+        `);
+    }
+
+    if (sections.length === 0) {
+        return `
+            <div class="circuit-issues-panel issue-clean">
+                <h3>Circuit Issues</h3>
+                <p class="no-issues">No issues detected — all circuits parsed cleanly.</p>
+            </div>
+        `;
+    }
+
+    return `
+        <div class="circuit-issues-panel">
+            <h3>Circuit Issues</h3>
+            ${sections.join('')}
+        </div>
+    `;
+}
+
 // ===== REGULATOR TYPES CONSTANT =====
 const REGULATOR_TYPES = ['Repressor Start', 'Repressor End', 'Activator Start', 'Activator End', 
                         'Inducer Start', 'Inducer End', 'Inhibitor Start', 'Inhibitor End'];
