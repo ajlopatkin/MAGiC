@@ -175,29 +175,7 @@ def simulate():
         
         cellboard = data['cellboard']
 
-        # Validate no non-inducer/non-inhibitor components are outside the cell interior (1..8 on both axes).
-        INDUCER_INHIBITOR_TYPES = {
-            'Inducer Start', 'Inducer End', 'Inhibitor Start', 'Inhibitor End'
-        }
-        outside_violations = []
-        for component_type, components in cellboard.items():
-            if component_type in INDUCER_INHIBITOR_TYPES:
-                continue
-            for comp in components:
-                cx = int(comp.get('x', 0))
-                cy = int(comp.get('y', 0))
-                if cx < 1 or cx > 8 or cy < 1 or cy > 8:
-                    outside_violations.append(f"{component_type} at ({cx}, {cy})")
-
-        if outside_violations:
-            return jsonify({
-                'status': 'error',
-                'message': (
-                    "Circuit cannot be modeled — these components are outside the cell membrane "
-                    "(only inducers and inhibitors may be placed outside): "
-                    + "; ".join(outside_violations)
-                )
-            }), 400
+       
         # Explicit flag from client telling whether dial overrides should be applied
         apply_dial = bool(data.get('apply_dial', False))
         # Always use dial_data if present (it contains 1.0 defaults when toggle is off)
@@ -768,7 +746,7 @@ def simulate():
         # Run simulation
         result = simulate_circuit(builder, colormap=chosen_colormap)
         
-        if result['status'] == 'error':
+        if result.get('status') == 'error':
             return jsonify(result), 400
 
         # Store export data from this simulation for /export_script
