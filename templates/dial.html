@@ -124,7 +124,7 @@
 
                 <!-- Unified Components -->
                 <div class="components-grid" id="components-grid">
-                    <div class="component" data-component="Promoter" draggable="true" data-tooltip="Place at the start of the operon to begin transcription.">
+                    <div class="component" data-component="Promoter" draggable="true" data-tooltip="Place as the first component in your gene circuit (operon); the promoter begins transcription.">
                         <div class="component-name">Promoter</div>
                         <!-- Strength menu commented out - using dynamic parameters instead -->
                         <!--
@@ -166,7 +166,7 @@
                         -->
                     </div>
                     
-                    <div class="component" data-component="CDS" draggable="true" data-tooltip="Add after an RBS; codes for a protein.">
+                    <div class="component" data-component="CDS" draggable="true" data-tooltip="Add after an RBS; provides the DNA that codes for a protein.">
                         <div class="component-name">CDS</div>
                         <!-- Strength menu commented out - using dynamic parameters instead -->
                         <!--
@@ -187,7 +187,7 @@
                         -->
                     </div>
                     
-                    <div class="component" data-component="Terminator" draggable="true" data-tooltip="Place at the end of the operon to stop transcription.">
+                    <div class="component" data-component="Terminator" draggable="true" data-tooltip="Place at the end of the operon to stop transcription of the coding sequence.">
                         <div class="component-name">Terminator</div>
                         <!-- Strength menu commented out - using dynamic parameters instead -->
                         <!--
@@ -208,7 +208,7 @@
                         -->
                     </div>
                     
-                    <div class="component" data-component="Repressor Start" draggable="true" data-tooltip="Add after the CDS that makes the repressor protein.">
+                    <div class="component" data-component="Repressor Start" draggable="true" data-tooltip="Place immediately AFTER the CDS that makes the repressor protein.">
                         <div class="component-name">Repressor Start</div>
                         <div class="strength-menu">
                             <div class="strength-option" data-strength="weak">
@@ -226,7 +226,7 @@
                         </div>
                     </div>
                     
-                    <div class="component" data-component="Repressor End" draggable="true" data-tooltip="Place after the promoter of the CDS to be repressed.">
+                    <div class="component" data-component="Repressor End" draggable="true" data-tooltip="Place immediately AFTER the PROMOTER of the CDS to be repressed.">
                         <div class="component-name">Repressor End</div>
                         <div class="strength-menu">
                             <div class="strength-option" data-strength="weak">
@@ -244,7 +244,7 @@
                         </div>
                     </div>
                     
-                    <div class="component" data-component="Activator Start" draggable="true" data-tooltip="Add after the CDS that makes the activator protein.">
+                    <div class="component" data-component="Activator Start" draggable="true" data-tooltip="Place immediately AFTER the CDS that makes the activator protein.">
                         <div class="component-name">Activator Start</div>
                         <div class="strength-menu">
                             <div class="strength-option" data-strength="weak">
@@ -262,7 +262,7 @@
                         </div>
                     </div>
                     
-                    <div class="component" data-component="Activator End" draggable="true" data-tooltip="Add after the CDS that makes the activator protein.">
+                    <div class="component" data-component="Activator End" draggable="true" data-tooltip="Place immediately AFTER the PROMOTER of the CDS to be activated.">
                         <div class="component-name">Activator End</div>
                         <div class="strength-menu">
                             <div class="strength-option" data-strength="weak">
@@ -280,7 +280,7 @@
                         </div>
                     </div>
                     
-                    <div class="component" data-component="Inducer Start" draggable="true" data-tooltip="Add to start inducer regulation (external activation).">
+                    <div class="component" data-component="Inducer Start" draggable="true" data-tooltip="Place anywhere in the CELL BORDER to establish an external signal.">
                         <div class="component-name">Inducer Start</div>
                         <div class="strength-menu">
                             <div class="strength-option" data-strength="weak">
@@ -298,7 +298,7 @@
                         </div>
                     </div>
                     
-                    <div class="component" data-component="Inducer End" draggable="true" data-tooltip="Place after the promoter to be induced.">
+                    <div class="component" data-component="Inducer End" draggable="true" data-tooltip="Place immediately AFTER the PROMOTER to be induced.">
                         <div class="component-name">Inducer End</div>
                         <div class="strength-menu">
                             <div class="strength-option" data-strength="weak">
@@ -316,7 +316,7 @@
                         </div>
                     </div>
                     
-                    <div class="component" data-component="Inhibitor Start" draggable="true" data-tooltip="Add to start inhibitor regulation (external repression).">
+                    <div class="component" data-component="Inhibitor Start" draggable="true" data-tooltip="Place anywhere in the CELL BORDER to establish an external signal.">
                         <div class="component-name">Inhibitor Start</div>
                         <div class="strength-menu">
                             <div class="strength-option" data-strength="weak">
@@ -334,7 +334,7 @@
                         </div>
                     </div>
                     
-                    <div class="component" data-component="Inhibitor End" draggable="true" data-tooltip="Place after the promoter to be inhibited.">
+                    <div class="component" data-component="Inhibitor End" draggable="true" data-tooltip="Place immediately AFTER the PROMOTER to be inhibited.">
                         <div class="component-name">Inhibitor End</div>
                         <div class="strength-menu">
                             <div class="strength-option" data-strength="weak">
