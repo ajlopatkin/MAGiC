@@ -690,7 +690,7 @@ class OntologyBuilderUnified:
                     component_strength = getattr(start, 'strength', 'norm')  # Default to normal
                     
                     # Define consistent default regulation parameters
-                    if rec["type"] == "repressor":
+                    if rec["type"] in ("repressor", "inhibitor"):
                         if component_strength == "strong":
                             default_Kr = 0.15  # Strong repression (lower Kr = stronger)
                             default_n = 4
@@ -732,7 +732,7 @@ class OntologyBuilderUnified:
                     }
                     
                     # Use consistent defaults unless overridden by constants file
-                    if rec["type"] == "repressor":
+                    if rec["type"] in ("repressor", "inhibitor"):
                         real_params["Kr"] = base.get("Kr", default_Kr)
                         real_params["n"] = base.get("n", default_n)
                     else:

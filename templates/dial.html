@@ -8,6 +8,7 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="{{ url_for('static', filename='css/styles.css') }}" rel="stylesheet">
     <link href="{{ url_for('static', filename='css/dial.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/sensitivity.css') }}" rel="stylesheet">
     <!-- MathJax for equation rendering -->
     <script>
         window.MathJax = {
@@ -634,6 +635,45 @@
                             <p>Design your circuit and run enhanced simulation</p>
                         </div>
                     </div>
+                    <section class="sensitivity-panel" aria-label="Sensitivity analysis">
+                        <div class="sensitivity-panel__header">
+                            <div class="sensitivity-panel__heading">
+                                <span class="sensitivity-panel__eyebrow">Optional analysis</span>
+                                <h3>Sensitivity analysis</h3>
+                            </div>
+                            <button type="button" id="sensitivity-toggle" class="sensitivity-panel__toggle"
+                                    aria-controls="sensitivity-content" aria-expanded="false" aria-pressed="false">
+                                Enable analysis
+                            </button>
+                        </div>
+                        <div id="sensitivity-content" class="sensitivity-panel__content" hidden>
+                            <p class="sensitivity-panel__description">
+                                Each successful simulation while enabled adds a run, up to 10. Clear Board resets the runs.
+                            </p>
+                            <div class="sensitivity-panel__toolbar">
+                                <div class="sensitivity-panel__field">
+                                    <label for="sensitivity-protein">Protein to compare</label>
+                                    <select id="sensitivity-protein" aria-describedby="sensitivity-status">
+                                        <option value="">Select a protein</option>
+                                    </select>
+                                </div>
+                                <span id="sensitivity-count" class="sensitivity-panel__count" aria-live="polite">0 / 10 runs</span>
+                            </div>
+                            <p id="sensitivity-status" class="sensitivity-panel__status" role="status" aria-live="polite">
+                                No runs recorded yet. Run a simulation to begin.
+                            </p>
+                            <ul id="sensitivity-runs" class="sensitivity-panel__runs" aria-label="Recorded sensitivity runs"></ul>
+                            <img id="sensitivity-plot" class="sensitivity-panel__plot"
+                                alt="Sensitivity comparison plot for the selected protein" hidden>
+                            <div class="sensitivity-panel__actions">
+                                <button type="button" id="sensitivity-remove-last" class="sensitivity-panel__action" disabled>
+                                    Remove last run
+                                </button>
+                                <a id="sensitivity-download" class="sensitivity-panel__action sensitivity-panel__action--download"
+                                download="sensitivity-analysis.png" aria-disabled="true">Download PNG</a>
+                            </div>
+                        </div>
+                    </section>
                 </div>
             </div>
         </div>
@@ -808,6 +848,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsPlumb/1.7.11/jquery.jsPlumb-1.7.11-min.js"></script>
     <!-- CRITICAL: Load eeprom.js BEFORE script.js -->
     <script src="{{ url_for('static', filename='js/eeprom.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/sensitivity.js') }}"></script>
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
     <script src="{{ url_for('static', filename='js/tooltip.js') }}"></script>
     <script>
