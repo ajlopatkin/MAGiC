@@ -397,7 +397,8 @@ async function runSimulation() {
 async function clearBoard() {
     console.log('=== CLEAR BOARD CALLED ===');
     
-    if (await showConfirm('Are you sure you want to clear the design board? This will remove all placed components.')) {
+    if (await showConfirm('Are you sure you want to clear the design board? This will remove all placed components and reset sensitivity comparisons.')) {
+        window.SensitivityAnalysis?.reset();
         // Clear connectors 
         if (typeof ConnectorManagerEEPROM !== 'undefined') {
             ConnectorManagerEEPROM.clearAll();
@@ -458,6 +459,7 @@ async function clearBoard() {
 // Create a clearboard function that doesn't have a pop up. This is ran when read board is ran
 function clearBoardSilent() {
     console.log('=== CLEAR BOARD SILENT ===');
+    window.SensitivityAnalysis?.invalidatePending();
     
     // Clear connectors 
     if (typeof ConnectorManagerEEPROM !== 'undefined') {
@@ -1229,15 +1231,6 @@ function getComponentParameters(componentType, componentNumber) {
                 defaultValue: 2,
                 title: 'Hill coefficient: higher values = sharper response'
             },
-            {
-                id: `repressor${num}_concentration`,
-                label: 'Initial Concentration:',
-                min: 0,
-                max: 5,
-                step: 0.1,
-                defaultValue: 1.0,
-                title: 'Starting repressor protein concentration (µM)'
-            }
         ],
         'Repressor End': [
             {
@@ -1258,15 +1251,6 @@ function getComponentParameters(componentType, componentNumber) {
                 defaultValue: 2,
                 title: 'Hill coefficient - higher values = sharper response'
             },
-            {
-                id: `repressor${num}_concentration`,
-                label: 'Initial Concentration:',
-                min: 0,
-                max: 5,
-                step: 0.1,
-                defaultValue: 1.0,
-                title: 'Starting repressor protein concentration (µM)'
-            }
         ],
         'Activator Start': [
             {
@@ -1287,15 +1271,6 @@ function getComponentParameters(componentType, componentNumber) {
                 defaultValue: 2,
                 title: 'Hill coefficient: higher values = sharper response'
             },
-            {
-                id: `activator${num}_concentration`,
-                label: 'Initial Concentration:',
-                min: 0,
-                max: 5,
-                step: 0.1,
-                defaultValue: 1.0,
-                title: 'Starting activator protein concentration (µM)'
-            }
         ],
         'Activator End': [
             {
@@ -1316,15 +1291,6 @@ function getComponentParameters(componentType, componentNumber) {
                 defaultValue: 2,
                 title: 'Hill coefficient: higher values = sharper response'
             },
-            {
-                id: `activator${num}_concentration`,
-                label: 'Initial Concentration:',
-                min: 0,
-                max: 5,
-                step: 0.1,
-                defaultValue: 1.0,
-                title: 'Starting activator protein concentration (µM)'
-            }
         ],
         'Inducer Start': [
             {
@@ -3797,6 +3763,7 @@ function autoConnectRegulatorPairs() {
 
 // Run simulation with cellboard data
 async function runSimulationFromCellboard(cellboard) {
+    const runToken = window.SensitivityAnalysis?.beginRun();
     try {
         const response = await fetch("/simulate", {
             method: "POST",
@@ -3805,6 +3772,7 @@ async function runSimulationFromCellboard(cellboard) {
         });
         
         const result = await response.json();
+        if (window.SensitivityAnalysis && !window.SensitivityAnalysis.shouldAccept(runToken)) return;
         
         // DEBUG: Log the full result
         console.log('=== BOARD MODE SIMULATION RESULT ===');
@@ -3816,6 +3784,7 @@ async function runSimulationFromCellboard(cellboard) {
         console.log('plotContainer element:', plotContainer);
         
         if (result.status === "success" || result.status === "partial") {
+            window.SensitivityAnalysis?.capture(result);
             console.log('=== DISPLAYING RESULTS ===');
             logLine('Hardware circuit simulation completed successfully!');
             
@@ -4517,6 +4486,7 @@ function createPlacedComponent(cell, component) {
 
 // Run simulation with populated board
 async function runSimulationAfterPopulation() {
+    const runToken = window.SensitivityAnalysis?.beginRun();
     const placedComponents = [];
     
     // Collect all placed components
@@ -4566,8 +4536,10 @@ async function runSimulationAfterPopulation() {
         });
         
         const result = await response.json();
+        if (window.SensitivityAnalysis && !window.SensitivityAnalysis.shouldAccept(runToken)) return;
         
         if (result.status === "success" || result.status === "partial") {
+            window.SensitivityAnalysis?.capture(result);
             logLine('Simulation completed successfully!');
             
             // Display plot
@@ -4783,6 +4755,7 @@ function clearLogAndBoard() {
 // The runSimulation function is properly defined within the component initialization scope
 
 async function runSimulationFromPlacedComponents() {
+    const runToken = window.SensitivityAnalysis?.beginRun();
     console.log('=== RUNNING SIMULATION FROM PLACED COMPONENTS ===');
     
     const errorDisplay = document.getElementById('error-display');
@@ -4949,60 +4922,46 @@ async function runSimulationFromPlacedComponents() {
             const toggle = document.getElementById('enable_dial_params');
             const includeDial = toggle ? toggle.checked : false;
             requestData.apply_dial = includeDial;
-            
+
             const dialData = {};
-            
-            // Always collect global parameters (either from form or defaults)
+
+            // The toggle controls only global multipliers.
             if (includeDial) {
-                // Collect global parameters from dial form
-                const inputs = dialForm.querySelectorAll('input[type="number"]:not([disabled])');
-                console.log(`[COLLECT] Collecting ${inputs.length} global parameter inputs`);
-                
+                const inputs = dialForm.querySelectorAll(
+                    'input[type="number"]:not([disabled])'
+                );
                 inputs.forEach(input => {
                     const paramName = input.name || input.id;
                     const value = parseFloat(input.value);
                     if (!isNaN(value) && paramName) {
                         dialData[paramName] = value;
-                        console.log(`  [COLLECT] Global - ${paramName}: ${value}`);
                     }
                 });
-                
-                // Collect component-specific parameters from cellboard
-                let componentParamCount = 0;
-                console.log(`[COLLECT] Scanning cellboard for component parameters...`);
-                Object.entries(cellboard).forEach(([type, components]) => {
-                    console.log(`[COLLECT] Type "${type}" has ${components.length} components`);
-                    components.forEach((comp, idx) => {
-                        if (comp.parameters) {
-                            console.log(`[COLLECT]   Component ${idx} has parameters:`, comp.parameters);
-                            Object.entries(comp.parameters).forEach(([paramId, paramValue]) => {
-                                dialData[paramId] = paramValue;
-                                componentParamCount++;
-                                console.log(`[COLLECT]     Added ${paramId} = ${paramValue}`);
-                            });
-                        }
-                    });
-                });
-                
-                requestData.dial = dialData;
-                console.log(`[COLLECT] Dial parameters collected: ${Object.keys(dialData).length} total`);
-                console.log('[COLLECT] Final dialData:', dialData);
             } else {
-                // When toggle is OFF, send default values of 1.0 for all global parameters
-                // Do NOT include any custom component parameters - use defaults only
-                console.log('⚠️ TOGGLE IS OFF - Sending default values (1.0) for ALL global parameters');
-                console.log('   Custom component parameters will be IGNORED - using base defaults');
                 dialData.global_transcription_rate = 1.0;
                 dialData.global_translation_rate = 1.0;
                 dialData.global_degradation_rate = 1.0;
                 dialData.temperature_factor = 1.0;
                 dialData.resource_availability = 1.0;
-                requestData.dial = dialData;
-                console.log('[COLLECT] Default dialData (all 1.0):', dialData);
-                console.log('✓ Sending to backend: apply_dial=false, all global params=1.0, NO custom component params');
             }
+
+            // This must be OUTSIDE the if (includeDial) block:
+            // individual component edits apply in both toggle states.
+            Object.values(cellboard).forEach(components => {
+                components.forEach(comp => {
+                    Object.entries(comp.parameters || {}).forEach(
+                        ([paramId, paramValue]) => {
+                            const numericValue = Number(paramValue);
+                            if (Number.isFinite(numericValue)) {
+                                dialData[paramId] = numericValue;
+                            }
+                        }
+                    );
+                });
+            });
+
+            requestData.dial = dialData;
         } else {
-            console.warn('No dial form found - parameters will not be applied');
             requestData.apply_dial = false;
         }
         
@@ -5028,9 +4987,11 @@ async function runSimulationFromPlacedComponents() {
         }
 
         const result = await response.json();
+        if (window.SensitivityAnalysis && !window.SensitivityAnalysis.shouldAccept(runToken)) return;
         console.log('Simulation result:', result);
 
         if (result.status === 'success' || result.status === 'partial') {
+            window.SensitivityAnalysis?.capture(result);
             // Display results
             if (result.plot && plotContainer) {
                 // Clear and display full results

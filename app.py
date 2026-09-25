@@ -181,6 +181,19 @@ def simulate():
         # Always use dial_data if present (it contains 1.0 defaults when toggle is off)
         dial_data = data.get('dial', {})
         
+        
+        # Keep individual edits, but ignore global multipliers when switched off.
+        if not apply_dial:
+            global_keys = {
+                'global_transcription_rate', 'global_translation_rate',
+                'global_degradation_rate', 'temperature_factor',
+                'resource_availability',
+            }
+            dial_data = {
+                key: value for key, value in dial_data.items()
+                if key not in global_keys
+            }
+
         # Debug logging
         print(f"\n{'='*80}")
         print(f"[SIMULATION REQUEST]")
@@ -283,6 +296,25 @@ def simulate():
         final_lines = []
         last_pos = -1
         
+        modal_global_factors = {
+            ('promoter', 'strength'): (
+                'global_transcription_rate',
+                'temperature_factor',
+                'resource_availability',
+            ),
+            ('rbs', 'efficiency'): (
+                'global_translation_rate',
+                'resource_availability',
+            ),
+            ('cds', 'translation_rate'): (
+                'global_translation_rate',
+                'temperature_factor',
+            ),
+            ('cds', 'degradation_rate'): (
+                'global_degradation_rate',
+            ),
+        }
+
         for comp in placed_components:
             pos = comp['position']
             # Add circuit break if there's a significant gap
@@ -399,13 +431,6 @@ def simulate():
                                 component_overrides[suffix]['n'] = int(float(value))
                             print(f"  - Regulator override: repressor_{comp_num} n = {value}")
 
-                        elif param_name.startswith('repressor') and '_concentration' in param_name:
-                            comp_num = param_name.replace('repressor', '').replace('_concentration', '')
-                            for suffix in [f'repressor_start_{comp_num}', f'repressor_end_{comp_num}']:
-                                if suffix not in component_overrides:
-                                    component_overrides[suffix] = {}
-                                component_overrides[suffix]['concentration'] = float(value)
-                            print(f"  - Regulator override: repressor_{comp_num} concentration = {value}")
 
                         elif param_name.startswith('activator') and ('_Ka' in param_name or '_constant' in param_name):
                             comp_num = param_name.replace('activator', '').replace('_Ka', '').replace('_constant', '')
@@ -423,13 +448,6 @@ def simulate():
                                 component_overrides[suffix]['n'] = int(float(value))
                             print(f"  - Regulator override: activator_{comp_num} n = {value}")
 
-                        elif param_name.startswith('activator') and '_concentration' in param_name:
-                            comp_num = param_name.replace('activator', '').replace('_concentration', '')
-                            for suffix in [f'activator_start_{comp_num}', f'activator_end_{comp_num}']:
-                                if suffix not in component_overrides:
-                                    component_overrides[suffix] = {}
-                                component_overrides[suffix]['concentration'] = float(value)
-                            print(f"  - Regulator override: activator_{comp_num} concentration = {value}")
 
                         elif param_name.startswith('inducer') and ('_Ka' in param_name or '_constant' in param_name):
                             comp_num = param_name.replace('inducer', '').replace('_Ka', '').replace('_constant', '')
@@ -659,22 +677,22 @@ def simulate():
                 'repressor_start': {
                     f'repressor{modal_num}_Kr': 'Kr',
                     f'repressor{modal_num}_n': 'n',
-                    f'repressor{modal_num}_concentration': 'concentration',
+                    
                 },
                 'repressor_end': {
                     f'repressor{modal_num}_Kr': 'Kr',
                     f'repressor{modal_num}_n': 'n',
-                    f'repressor{modal_num}_concentration': 'concentration',
+                    
                 },
                 'activator_start': {
                     f'activator{modal_num}_Ka': 'Ka',
                     f'activator{modal_num}_n': 'n',
-                    f'activator{modal_num}_concentration': 'concentration',
+                    
                 },
                 'activator_end': {
                     f'activator{modal_num}_Ka': 'Ka',
                     f'activator{modal_num}_n': 'n',
-                    f'activator{modal_num}_concentration': 'concentration',
+                    
                 },
                 'inducer_start': {
                     f'inducer{modal_num}_Ka': 'Ka',
@@ -720,6 +738,15 @@ def simulate():
                 if frontend_key in params:
                     try:
                         val = float(params[frontend_key])
+                        
+                        for global_key in modal_global_factors.get(
+                            (base_type, backend_key), ()
+                        ):
+                            try:
+                                val *= float(dial_data[global_key])
+                            except (KeyError, ValueError, TypeError):
+                                pass
+
                         adjusted_constants[comp_name][backend_key] = val
                         print(f"[PARAM OVERRIDE] {comp_name}.{backend_key} = {val} (modal key '{frontend_key}', modal_num={modal_num}, comp_num={comp_num})")
                         if reg_key:
