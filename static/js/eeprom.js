@@ -1954,55 +1954,6 @@ class GeneticConnectorEEPROM {
     return typeMap[componentType] || 'handle-default';
     }
 
-    /*
-    init(port) {
-        ConnectorManagerEEPROM.connectionsLayer.appendChild(this.element);
-        this.element.style.display = 'block';
-        
-        // Add arrowhead marker to the path
-        this.path.setAttribute('marker-end', 'url(#arrow)');
-
-        this.isInput = port.isInput;
-        this.staticPort = port;
-
-        if (port.isInput) {
-            this.inputPort = port;
-            this.dragElement = this.outputHandle;
-            this.staticElement = this.inputHandle;
-        } else {
-            this.outputPort = port;
-            this.dragElement = this.inputHandle;
-            this.staticElement = this.outputHandle;
-        }
-
-        this.staticElement.setAttribute("data-drag", `${port.id}:port`);
-        this.dragElement.setAttribute("data-drag", `${this.id}:connector`);
-
-        const componentType = port.component.type;
-        const handleClass = this.getHandleClass(componentType);
-        const pathClass = this.getPathClass(componentType);
-        const arrowClass = this.getArrowClass(componentType); 
-        const marker = document.querySelector('#arrow'); 
-        this.path.classList.add(pathClass);
-        this.inputHandle.classList.add(handleClass);
-        this.outputHandle.classList.add(handleClass);
-
-        if (marker) {
-        marker.classList.add(arrowClass);
-        }
-
-        // Set initial positions
-        const pos = port.getGlobalPosition();
-        this.inputHandle.setAttribute('cx', pos.x);
-        this.inputHandle.setAttribute('cy', pos.y);
-        this.outputHandle.setAttribute('cx', pos.x);
-        this.outputHandle.setAttribute('cy', pos.y);
-
-        this.updatePath();
-
-    }
-*/
-
     init(port) {
     ConnectorManagerEEPROM.connectionsLayer.appendChild(this.element);
     this.element.style.display = 'block';
@@ -2167,54 +2118,6 @@ class GeneticConnectorEEPROM {
         }
     }
 
-    /*
-    connectToPort(port) {
-        if (this.isInput) {
-            this.outputPort = port;
-        } else {
-            this.inputPort = port;
-        }
-
-        this.dragElement.setAttribute("data-drag", `${port.id}:port`);
-        port.addConnector(this);
-        this.updateHandle(port);
-
-        const sourceComp = this.isInput ? this.outputPort : this.inputPort;
-        if (sourceComp) {
-        const componentType = sourceComp.component.type;
-        const handleClass = this.getHandleClass(componentType);
-        const pathClass = this.getPathClass(componentType);
-        const arrowClass = this.getArrowClass(componentType);
-        const marker = document.querySelector('#arrow');
-        
-        // Remove old classes
-        this.inputHandle.classList.remove('handle-promoter', 'handle-terminator', 'handle-rbs', 'handle-cds', 'handle-repressor', 'handle-activator', 'handle-inducer', 'handle-inhibitor', 'handle-default');
-        this.outputHandle.classList.remove('handle-promoter', 'handle-terminator', 'handle-rbs', 'handle-cds', 'handle-repressor', 'handle-activator', 'handle-inducer', 'handle-inhibitor', 'handle-default');
-        this.path.classList.remove('connector-path-promoter', 'connector-path-terminator', 'connector-path-rbs', 'connector-path-cds', 'connector-path-repressor', 'connector-path-activator', 'connector-path-inducer', 'connector-path-inhibitor', 'connector-path-default');
-         if (marker) { 
-            marker.classList.remove('arrow-promoter', 'arrow-terminator', 'arrow-rbs', 'arrow-cds', 'arrow-repressor', 'arrow-activator', 'arrow-inducer', 'arrow-inhibitor', 'arrow-default');
-        }
-        
-        // Add new class
-        this.inputHandle.classList.add(handleClass);
-        this.outputHandle.classList.add(handleClass);
-        this.path.classList.add(pathClass);
-        if (marker) { 
-            marker.classList.add(arrowClass);
-        } 
-    }
-
-        // Check compatibility and validate connection
-        if (this.inputPort && this.outputPort) {
-            if (!this.isValidConnection(port)) {
-                this.remove();
-                return;
-            }
-            
-            console.log(`Connected ${this.outputPort.component.type} to ${this.inputPort.component.type}`);
-        }
-    }
-*/
 
 connectToPort(port) {
     if (this.isInput) {
@@ -3266,6 +3169,26 @@ async function initializeI2CBus() {
     await new Promise(resolve => setTimeout(resolve, 1000));
     logLine('I2C initialization sequence completed');
 }
+function mergeCellboardIntoBoard(cellboard) {
+    for (const [componentType, components] of Object.entries(cellboard)) {
+        components.forEach(comp => {
+            const x = parseInt(comp.x);
+            const y = parseInt(comp.y);
+
+            const cell = document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`);
+            if (!cell || cell.classList.contains('has-component')) return;
+
+            const component = {
+                name: `${componentType.toLowerCase()}_${comp.gene.split(' ')[1]}`,
+                type: componentType,
+                gene: comp.gene.split(' ')[1],
+                strength: comp.strength
+            };
+
+            createPlacedComponent(cell, component);
+        });
+    }
+}
 
 // Read complete board configuration
 async function readBoardConfiguration() {
@@ -3297,24 +3220,25 @@ async function readBoardConfiguration() {
         await initializeI2CBus();
         logLine('I2C bus initialized successfully - ready for fast EEPROM reads');
         
-        // Read all MUX channels (A - G, 0-15 each) - EXACTLY like August working version
+        // Read all MUX channels (A - G, 0-15 each)
         const muxChannels = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
         const channelRange = Array.from({length: 16}, (_, i) => i);
         
         for (const mux of muxChannels) {
             logLine(`\n=== Scanning MUX ${mux.toUpperCase()} ===`);
 
-             for (const channel of channelRange) {
-                 // Skip MUX G channels 4-15
-                 if (mux === 'g' && channel > 3) {
-                 continue;
+            for (const channel of channelRange) {
+                // Skip MUX G channels 4-15
+                if (mux === 'g' && channel > 3) {
+                    continue;
                 }
-            
-            
+
                 logLine(`\n--- MUX ${mux.toUpperCase()}, Channel ${channel} ---`);
-    
-                
-                // Select MUX and channel (single MUX only - like August)
+
+                // ── Track where this channel's logs begin
+                const channelStartIdx = LOG_LINES.length;
+
+                // Select MUX and channel
                 const selectCmd = `sm ${mux} ${channel}`;
                 if (!(await sendCommand(selectCmd))) {
                     continue;
@@ -3327,37 +3251,80 @@ async function readBoardConfiguration() {
                     logLine(`Skipping channel ${channel} - MUX selection failed`);
                     continue;
                 }
-                
-                // Read EEPROM into buffer FIRST (this was missing!)
+
+                // Read EEPROM into buffer FIRST
                 logLine('Reading EEPROM data into buffer...');
-                await sendCommand('er 0 64');  // Read 64 bytes from address 0
-                
-                // Then hex dump the buffer - FIRST attempt (often fails like August)
+                await sendCommand('er 0 64');
+
+                // Then hex dump the buffer - FIRST attempt
                 const hexLinesBefore = LOG_LINES.filter(line => line.match(/^\s*[0-9A-Fa-f]{2,4}:\s+(?:[0-9A-Fa-f]{2}\s+){8,}/)).length;
-                await sendCommand('hd 0 16');  // Hex dump starting from address 0
+                await sendCommand('hd 0 16');
                 await waitForHexDumpComplete(100);
 
-                // Only retry if no hex data was captured from first attempt
-
-                // Currently second read is commented, may need to return if board stuggles with only one read
-                
                 const hexLinesAfter = LOG_LINES.filter(line => line.match(/^\s*[0-9A-Fa-f]{2,4}:\s+(?:[0-9A-Fa-f]{2}\s+){8,}/)).length;
                 if (hexLinesAfter === hexLinesBefore) {
-                    // No hex data from first attempt - try second attempt like August pattern
                     logLine('First attempt failed, retrying...');
-                    await sendCommand('hd 0 16');  // Use correct syntax with start address
+                    await sendCommand('hd 0 16');
                     await waitForHexDumpComplete(100);
                 }
-                    
-                
+
+                // ── LIVE UPDATE: only post if this channel actually returned hex data
+                const channelLogs = LOG_LINES.slice(channelStartIdx);
+                const hasHexData = channelLogs.some(line =>
+                    /^\s*[0-9A-Fa-f]{2,4}:\s+(?:[0-9A-Fa-f]{2}\s+){8,}/.test(line)
+                );
+
+                if (hasHexData) {
+                    try {
+                        const response = await fetch('/interpret_hardware', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ log_lines: channelLogs })
+                        });
+                        const result = await response.json();
+                        if (result.status === 'success' && result.cellboard && Object.keys(result.cellboard).length > 0) {
+                            mergeCellboardIntoBoard(result.cellboard);
+                            logLine(`✓ LIVE: ${mux.toUpperCase()}${channel} → ${result.component_count} component(s)`);
+                        }
+                    } catch (err) {
+                        console.error(`Live update for ${mux}${channel} failed:`, err);
+                    }
+                }
             }
         }
-        
+
+        // ── After the entire scan: pair up regulators once
+        autoConnectRegulatorPairs();
+
         logLine('\n=== Board scan completed ===');
-        
-        // Use backend to parse the log and populate the board
-        await parseLogWithBackend();
-        
+
+        // Save full result to localStorage for the "Transfer to Designer" flow
+        // (rebuilt from state.placedComponents by parseLogWithBackend's original logic)
+        try {
+            const fullCellboard = {};
+            (state.placedComponents || []).forEach(c => {
+                const type = c.type;
+                if (!fullCellboard[type]) fullCellboard[type] = [];
+                fullCellboard[type].push({
+                    gene: c.gene ? `Gene ${c.gene}` : 'Gene 1',
+                    strength: c.strength || 'norm',
+                    x: String(c.x),
+                    y: String(c.y)
+                });
+            });
+            if (Object.keys(fullCellboard).length > 0) {
+                localStorage.setItem('hardwareCircuitData', JSON.stringify({
+                    cellboard: fullCellboard,
+                    timestamp: Date.now(),
+                    source: 'hardware_board'
+                }));
+                logLine('Circuit data saved for transfer to main designer!');
+                showTransferToDesignerButton(fullCellboard);
+            }
+        } catch (e) {
+            console.warn('Could not save circuit data:', e);
+        }
+
     } catch (err) {
         console.error("Board reading error:", err);
         logLine(`Error reading board: ${err.message}`);
