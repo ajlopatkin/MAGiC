@@ -40,51 +40,69 @@ CORS(app)
 # Initialize circuit model with constants
 circuit_builder = OntologyBuilderUnified(COMPONENT_CONSTANTS)
 
+
 @app.route('/')
 def loading():
     """Loading splash screen"""
     return render_template('loading.html')
+
 
 @app.route('/home')
 def home():
     """Home page with navigation menu"""
     return render_template('home.html')
 
+
 @app.route('/dial')
 def dial():
     """Dial mode page for parameter adjustment"""
     return render_template('dial.html')
+
 
 @app.route('/eeprom')
 def eeprom():
     """EEPROM control page for hardware integration"""
     return render_template('eeprom.html')
 
+
 @app.route('/about')
 def about():
     """About page with team information"""
     return render_template('about.html')
+
 
 @app.route('/simulate', methods=['POST'])
 def simulate():
     """Enhanced simulation endpoint using Version 15.3 modeling"""
     try:
         data = request.get_json()
-        
+
         if not data or 'cellboard' not in data:
             return jsonify({
                 'status': 'error',
                 'message': 'Invalid request data. Expected cellboard configuration.'
             }), 400
-        
+
         cellboard = data['cellboard']
 
-       
         # Explicit flag from client telling whether dial overrides should be applied
         apply_dial = bool(data.get('apply_dial', False))
         # Always use dial_data if present (it contains 1.0 defaults when toggle is off)
         dial_data = data.get('dial', {})
-        
+
+        # ── SENSITIVITY ──
+        # Keep individual edits, but ignore global multipliers when switched off.
+        if not apply_dial:
+            global_keys = {
+                'global_transcription_rate', 'global_translation_rate',
+                'global_degradation_rate', 'temperature_factor',
+                'resource_availability',
+            }
+            dial_data = {
+                key: value for key, value in dial_data.items()
+                if key not in global_keys
+            }
+
         # Debug logging
         print(f"\n{'='*80}")
         print(f"[SIMULATION REQUEST]")
@@ -98,9 +116,9 @@ def simulate():
                 if key in dial_data:
                     print(f"      {key}: {dial_data[key]}")
             if apply_dial:
-                print(f"  - ✓ Global parameters WILL BE APPLIED (toggle ON)")
+                print(f"  - Global parameters WILL BE APPLIED (toggle ON)")
             else:
-                print(f"  - ✓ Using default values 1.0 (toggle OFF - no effect)")
+                print(f"  - Using default values 1.0 (toggle OFF - no effect)")
         else:
             print(f"  - NO dial parameters (using base component values)")
         print(f"  - Cellboard components: {sum(len(comps) for comps in cellboard.values())}")
@@ -108,42 +126,48 @@ def simulate():
 
         placed_components, final_lines = cellboard_to_hardware_lines(cellboard)
 
-        adjusted_constants = apply_dial_adjustments(COMPONENT_CONSTANTS, dial_data)
-
-
         if not final_lines:
             return jsonify({
                 'status': 'error',
                 'message': 'No components placed on the board. Please place some components first.'
             }), 400
-        
-        
+
         # Debug: Show the converted hardware txt format
         print("=== CONVERTED HARDWARE TXT FORMAT ===")
         for line in final_lines:
             print(f"  {line}")
         print("=====================================")
-        
+
+        # Apply dial adjustments to constants
+        adjusted_constants = apply_dial_adjustments(COMPONENT_CONSTANTS, dial_data)
+
+        # ── SENSITIVITY ──
+        # Global factors that multiply each modal-set parameter when the toggle is ON.
+        # Keyed by (base_type, backend_key) so each parameter knows which global
+        # multipliers apply to it.
+        modal_global_factors = {
+            ('promoter', 'strength'): ('global_transcription_rate', 'temperature_factor', 'resource_availability'),
+            ('rbs', 'efficiency'): ('global_translation_rate', 'resource_availability'),
+            ('cds', 'translation_rate'): ('global_translation_rate', 'temperature_factor'),
+            ('cds', 'degradation_rate'): ('global_degradation_rate',),
+        }
 
         # Apply per-component parameters from the modal (highest priority).
         # We use TWO different numbers per component:
-        #   - `comp_num` (pair_id for regulators) → drives `comp_name`, which is the
-        #     key circuit_model.py uses when it looks up adjusted_constants.
+        #   - `comp_num` (pair_id for regulators) → drives `comp_name`
         #   - `modal_num` (the number the user actually saw in the modal) → drives
-        #     the param_mapping lookup keys (e.g. "cds3_degradation_rate"), which is
-        #     what the frontend baked into comp['parameters'].
-        # Override values are written under `comp_name` so the simulator picks them up.
+        #     the param_mapping lookup keys.
         for comp in placed_components:
             comp_name = comp['name']
             base_type = comp['base_type']
-            comp_num  = comp['comp_number']     # pair_id for regulators, sequential otherwise
+            comp_num = comp['comp_number']
             modal_num = comp.get('modal_number')
             if modal_num is None:
                 modal_num = comp.get('number')
             if modal_num is None:
                 modal_num = comp_num
-            modal_num = int(modal_num)   # the number the modal used in its param keys
-            params    = comp.get('parameters', {})
+            modal_num = int(modal_num)
+            params = comp.get('parameters', {})
 
             if not params:
                 continue
@@ -151,11 +175,9 @@ def simulate():
             if comp_name not in adjusted_constants:
                 adjusted_constants[comp_name] = {}
 
-            # IMPORTANT: param_mapping lookup keys are built with modal_num so they
-            # match the keys the frontend modal baked into params.
             param_mapping = {
-                'promoter':   {f'promoter{modal_num}_strength': 'strength'},
-                'rbs':        {f'rbs{modal_num}_efficiency': 'efficiency'},
+                'promoter': {f'promoter{modal_num}_strength': 'strength'},
+                'rbs': {f'rbs{modal_num}_efficiency': 'efficiency'},
                 'cds': {
                     f'cds{modal_num}_translation_rate': 'translation_rate',
                     f'cds{modal_num}_degradation_rate': 'degradation_rate',
@@ -204,15 +226,11 @@ def simulate():
                 },
             }
 
-            # For regulators, also mirror writes onto the reg_key entry
-            # (e.g. "repressor_5") since circuit_model.py looks under start.reg_key
-            # in addition to start.label. comp_num is pair_id here, matching what
-            # circuit_model derives from start.reg_key.
             reg_key = None
             regulator_types = (
                 'repressor_start', 'repressor_end',
                 'activator_start', 'activator_end',
-                'inducer_start',   'inducer_end',
+                'inducer_start', 'inducer_end',
                 'inhibitor_start', 'inhibitor_end',
             )
             if base_type in regulator_types:
@@ -226,6 +244,16 @@ def simulate():
                 if frontend_key in params:
                     try:
                         val = float(params[frontend_key])
+
+                        # ── SENSITIVITY ──
+                        # Multiply by applicable global factors (only present in
+                        # dial_data when apply_dial is True, per the filter above).
+                        for global_key in modal_global_factors.get((base_type, backend_key), ()):
+                            try:
+                                val *= float(dial_data[global_key])
+                            except (KeyError, ValueError, TypeError):
+                                pass
+
                         adjusted_constants[comp_name][backend_key] = val
                         print(f"[PARAM OVERRIDE] {comp_name}.{backend_key} = {val} (modal key '{frontend_key}', modal_num={modal_num}, comp_num={comp_num})")
                         if reg_key:
@@ -236,22 +264,22 @@ def simulate():
 
         # Create new builder with adjusted constants
         builder = OntologyBuilderUnified(adjusted_constants)
-        
+
         # Parse the component lines
         builder.parse_text_file(final_lines)
         builder.build()
-        
+
         # Read colormap choice (validated against allowed list)
         _ALLOWED_COLORMAPS = {'cool', 'spring', 'autumn', 'turbo', 'plasma'}
         chosen_colormap = data.get('colormap', 'cool')
-        
+
         print(f"[COLORMAP DEBUG] app.py is passing colormap='{chosen_colormap}' to simulate_circuit")
         if chosen_colormap not in _ALLOWED_COLORMAPS:
             chosen_colormap = 'cool'
 
         # Run simulation
         result = simulate_circuit(builder, colormap=chosen_colormap)
-        
+
         if result.get('status') == 'error':
             return jsonify(result), 400
 
@@ -263,27 +291,22 @@ def simulate():
 
         # Generate equation representations
         equations = generate_equation_display(builder, result)
-        
+
         # Use the styled plot already generated by simulate_circuit.
         plot_data = result.get('plot', '')
-        
+
         # Prepare component parameters for display
         component_parameters = []
         for comp in placed_components:
             comp_key = comp['name']
             params = {}
-            
-            # Get parameters from adjusted_constants if they exist
+
             if comp_key in adjusted_constants:
                 const_data = adjusted_constants[comp_key]
                 if comp['type'] in ['Promoter']:
-                    params = {
-                        'strength': const_data.get('strength', 'N/A')
-                    }
+                    params = {'strength': const_data.get('strength', 'N/A')}
                 elif comp['type'] == 'RBS':
-                    params = {
-                        'efficiency': const_data.get('efficiency', 'N/A')
-                    }
+                    params = {'efficiency': const_data.get('efficiency', 'N/A')}
                 elif comp['type'] == 'CDS':
                     params = {
                         'translation_rate': const_data.get('translation_rate', 'N/A'),
@@ -291,9 +314,7 @@ def simulate():
                         'init_concentration': const_data.get('init_conc', 'N/A')
                     }
                 elif comp['type'] == 'Terminator':
-                    params = {
-                        'efficiency': const_data.get('efficiency', 'N/A')
-                    }
+                    params = {'efficiency': const_data.get('efficiency', 'N/A')}
                 elif comp['type'] in ['Repressor', 'Repressor Start', 'Repressor End']:
                     params = {
                         'Kr': const_data.get('Kr', 'N/A'),
@@ -324,22 +345,20 @@ def simulate():
                         'type': const_data.get('type', 'inhibitor'),
                         'is_floating': const_data.get('is_floating', True)
                     }
-            
+
             comp_entry = {
-            'name': comp['name'],
-            'type': comp['type'],
-            'strength': comp['strength'],
-            'position': comp['position'],
-            'parameters': params
+                'name': comp['name'],
+                'type': comp['type'],
+                'strength': comp['strength'],
+                'position': comp['position'],
+                'parameters': params
             }
             if comp.get('customName'):
                 comp_entry['custom_name'] = comp['customName']
             if comp.get('geneName'):
                 comp_entry['gene_name'] = comp['geneName']
             component_parameters.append(comp_entry)
-            
-    
-        
+
         # Prepare detailed response
         response_data = {
             'status': 'success',
@@ -357,26 +376,27 @@ def simulate():
             'global_parameters_applied': apply_dial,
             'global_parameters': {k: v for k, v in dial_data.items() if k in ['global_transcription_rate', 'global_translation_rate', 'global_degradation_rate', 'temperature_factor', 'resource_availability']} if apply_dial else {}
         }
-        
+
         # Add circuit validation messages
         if result.get('regulator_issues'):
             response_data['warnings'].extend([
                 f"Regulator issue: {issue.get('issue', str(issue))}" for issue in result['regulator_issues']
             ])
-        
+
         if result.get('unpaired_regulators'):
             response_data['warnings'].extend([
                 f"Unpaired regulator: {reg.get('label', str(reg))}" for reg in result['unpaired_regulators']
             ])
-        
+
         return jsonify(response_data)
-        
+
     except Exception as e:
         logging.error(f"Simulation error: {str(e)}", exc_info=True)
         return jsonify({
             'status': 'error',
             'message': f'Simulation failed: {str(e)}'
         }), 500
+
 
 @app.route('/api/components')
 def get_components():
@@ -396,6 +416,7 @@ def get_components():
         'Inhibitor End': {'color': '#920702'}
     }
     return jsonify(components)
+
 
 @app.route('/export_script')
 def export_script():
@@ -541,17 +562,18 @@ def export_script():
         download_name='circuit_simulation.py'
     )
 
+
 @app.route('/api/constants')
 def get_constants():
     """Get current component constants for dial mode"""
     return jsonify(COMPONENT_CONSTANTS)
 
+
 @app.route('/api/parameter_defaults')
 def get_parameter_defaults():
     """Get parameter defaults and ranges from constants.py"""
     from constants import PARAMETER_RANGES
-    
-    # Extract default values from COMPONENT_CONSTANTS
+
     defaults = {
         'promoter_strength': COMPONENT_CONSTANTS.get('promoter_1', {}).get('strength', 5.0),
         'rbs_efficiency': COMPONENT_CONSTANTS.get('rbs_1', {}).get('efficiency', 1.0),
@@ -564,11 +586,12 @@ def get_parameter_defaults():
         'activator_Ka': COMPONENT_CONSTANTS.get('activator_a', {}).get('Ka', 0.4),
         'activator_n': COMPONENT_CONSTANTS.get('activator_a', {}).get('n', 2),
     }
-    
+
     return jsonify({
         'defaults': defaults,
         'ranges': PARAMETER_RANGES
     })
+
 
 @app.route('/interpret_hardware', methods=['POST'])
 def interpret_hardware():
@@ -576,32 +599,28 @@ def interpret_hardware():
     try:
         data = request.json or {}
         log_lines = data.get('log_lines', [])
-        
+
         if not log_lines:
             return jsonify({
                 'status': 'error',
                 'message': 'No log lines provided'
             }), 400
-        
-        # Parse the hardware log lines to extract component data
+
         channel_data = parse_hardware_log(log_lines)
-        
-        # Convert to cellboard format
         cellboard = convert_hardware_to_cellboard(channel_data)
-        
-        # Calculate actual component count (exclude _scan_stats)
+
         actual_component_count = sum(
-            len(components) for key, components in channel_data.items() 
+            len(components) for key, components in channel_data.items()
             if key != '_scan_stats' and isinstance(components, list)
         )
-        
+
         return jsonify({
             'status': 'success',
             'channel_data': channel_data,
             'cellboard': cellboard,
             'component_count': actual_component_count
         })
-        
+
     except Exception as e:
         logging.error(f"Hardware interpretation error: {str(e)}")
         return jsonify({
@@ -609,33 +628,30 @@ def interpret_hardware():
             'message': f'Hardware interpretation failed: {str(e)}'
         }), 500
 
+
 @app.route('/export')
 def export_project():
     """Export all project files as a ZIP archive"""
     try:
-        # Create a temporary directory for the ZIP file
         with tempfile.TemporaryDirectory() as temp_dir:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             zip_filename = f"genetic_circuit_designer_{timestamp}.zip"
             zip_path = os.path.join(temp_dir, zip_filename)
-            
-            # Create ZIP file
+
             with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                # Add main Python files
                 main_files = [
                     'app.py',
-                    'main.py', 
+                    'main.py',
                     'circuit_model.py',
                     'constants.py',
                     'pyproject.toml',
                     'replit.md'
                 ]
-                
+
                 for file in main_files:
                     if os.path.exists(file):
                         zipf.write(file, file)
-                
-                # Add templates directory
+
                 templates_dir = 'templates'
                 if os.path.exists(templates_dir):
                     for root, dirs, files in os.walk(templates_dir):
@@ -643,8 +659,7 @@ def export_project():
                             file_path = os.path.join(root, file)
                             arc_path = os.path.relpath(file_path, '.')
                             zipf.write(file_path, arc_path)
-                
-                # Add static directory
+
                 static_dir = 'static'
                 if os.path.exists(static_dir):
                     for root, dirs, files in os.walk(static_dir):
@@ -652,81 +667,44 @@ def export_project():
                             file_path = os.path.join(root, file)
                             arc_path = os.path.relpath(file_path, '.')
                             zipf.write(file_path, arc_path)
-                
-                # Add a README for the exported project
-                readme_content = """# Genetic Circuit Designer - Exported Project
 
-This is an exported copy of your Genetic Circuit Designer project.
+                readme_content = (
+                    "# Genetic Circuit Designer - Exported Project\n\n"
+                    "This is an exported copy of your Genetic Circuit Designer project.\n\n"
+                    "## Files Included:\n"
+                    "- app.py - Main Flask application\n"
+                    "- main.py - Entry point for the application\n"
+                    "- circuit_model.py - Circuit modeling and simulation engine\n"
+                    "- constants.py - Component constants and parameters\n"
+                    "- templates/ - HTML templates for the web interface\n"
+                    "- static/ - CSS, JavaScript, and other static assets\n"
+                    "- pyproject.toml - Project dependencies\n\n"
+                    "## To Run:\n\n"
+                    "1. Install dependencies: pip install -r requirements.txt\n"
+                    "2. Run the application: python main.py\n"
+                    "3. Open your browser to http://localhost:5001\n\n"
+                    "Generated on: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n"
+                )
 
-## Files Included:
-- app.py - Main Flask application
-- main.py - Entry point for the application
-- circuit_model.py - Circuit modeling and simulation engine
-- constants.py - Component constants and parameters
-- templates/ - HTML templates for the web interface
-- static/ - CSS, JavaScript, and other static assets
-- pyproject.toml - Project dependencies
-- replit.md - Project documentation
-
-## To Run:
-
-### Option 1: Using Virtual Environment (Recommended)
-1. Create and activate virtual environment:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\\Scripts\\activate
-   ```
-2. Install dependencies: `pip install -r requirements.txt`
-3. Run the application: `python main.py`
-4. Open your browser to http://localhost:5001
-
-### Option 2: Using UV (Fast Package Manager)
-1. Install UV: `pip install uv`
-2. Install dependencies: `uv pip install -r requirements.txt`
-3. Run the application: `python main.py`
-4. Open your browser to http://localhost:5001
-
-### Option 3: Direct Installation
-1. Install dependencies: `pip install -r requirements.txt`
-2. Run the application: `python main.py`
-3. Open your browser to http://localhost:5001
-
-**Port Configuration:**
-- Uses port 5001 by default to avoid conflicts with macOS AirPlay Receiver on port 5000
-- Set PORT environment variable to use different port: `PORT=8000 python main.py`
-- To deactivate virtual environment when done: `deactivate`
-
-## Features:
-- Drag-and-drop circuit design interface
-- Advanced genetic circuit simulation
-- Parameter tuning with dial mode
-- EEPROM hardware integration
-- LaTeX equation display
-- Export/import functionality
-
-Generated on: """ + datetime.now().strftime("%Y-%m-%d %H:%M:%S") + """
-"""
-                
                 zipf.writestr('README.md', readme_content)
-                
-                # Create a requirements.txt file from pyproject.toml dependencies
-                requirements_content = """flask
-flask-cors
-numpy
-scipy
-matplotlib
-gunicorn
-"""
+
+                requirements_content = (
+                    "flask\n"
+                    "flask-cors\n"
+                    "numpy\n"
+                    "scipy\n"
+                    "matplotlib\n"
+                    "gunicorn\n"
+                )
                 zipf.writestr('requirements.txt', requirements_content)
-            
-            # Send the ZIP file
+
             return send_file(
                 zip_path,
                 as_attachment=True,
                 download_name=zip_filename,
                 mimetype='application/zip'
             )
-            
+
     except Exception as e:
         logging.error(f"Export error: {str(e)}", exc_info=True)
         return jsonify({
@@ -734,7 +712,7 @@ gunicorn
             'message': f'Export failed: {str(e)}'
         }), 500
 
+
 if __name__ == '__main__':
-    # Use port 5001 to avoid conflicts with macOS AirPlay Receiver on port 5000
     port = int(os.environ.get('PORT', 5001))
     app.run(host='0.0.0.0', port=port, debug=True)
