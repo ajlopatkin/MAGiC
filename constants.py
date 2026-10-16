@@ -227,3 +227,149 @@ PARAMETER_RANGES = {
     "temperature_factor": (0.5, 2.0),
     "resource_availability": (0.1, 2.0)
 }
+
+# ── Display colors for each component type (frontend palette) ────────────────
+COMPONENT_COLORS = {
+    'Promoter':        '#ff859c',
+    'Terminator':      'rgb(225, 218, 3)',
+    'RBS':             '#f39c12',
+    'CDS':             '#3C5EB4',
+    'Repressor Start': '#e12929',
+    'Repressor End':   '#e12929',
+    'Activator Start': '#6ccd7e',
+    'Activator End':   '#6ccd7e',
+    'Inducer Start':   '#0e7b39',
+    'Inducer End':     '#0e7b39',
+    'Inhibitor Start': '#920702',
+    'Inhibitor End':   '#920702',
+}
+
+
+# ── Display name → internal snake_case name ──────────────────────────────────
+COMPONENT_TYPE_MAP = {
+    'Promoter':        'promoter',
+    'RBS':             'rbs',
+    'CDS':             'cds',
+    'Terminator':      'terminator',
+    'Repressor Start': 'repressor_start',
+    'Repressor End':   'repressor_end',
+    'Activator Start': 'activator_start',
+    'Activator End':   'activator_end',
+    'Inducer Start':   'inducer_start',
+    'Inducer End':     'inducer_end',
+    'Inhibitor Start': 'inhibitor_start',
+    'Inhibitor End':   'inhibitor_end',
+}
+
+
+# ── Internal name → display name (used by hardware parser) ───────────────────
+# Includes alternate spellings/aliases that come from the hardware EEPROM.
+COMPONENT_DISPLAY_NAMES = {
+    'promoter':        'Promoter',
+    'promotor':        'Promoter',   # hardware sometimes writes this
+    'prom':            'Promoter',
+    'omo':             'Promoter',
+    'terminator':      'Terminator',
+    'term':            'Terminator',
+    'termi':           'Terminator',
+    'rbs':             'RBS',
+    'cds':             'CDS',
+    'coding':          'CDS',
+    'repressor_start': 'Repressor Start',
+    'repressor_end':   'Repressor End',
+    'activator_start': 'Activator Start',
+    'activator_end':   'Activator End',
+    'inducer_start':   'Inducer Start',
+    'inducer_end':     'Inducer End',
+    'inhibitor_start': 'Inhibitor Start',
+    'inhibitor_end':   'Inhibitor End',
+    'inducer':         'Inducer',
+    'rep_start':       'Repressor Start',
+    'rep_end':         'Repressor End',
+    'act_start':       'Activator Start',
+    'act_end':         'Activator End',
+    'ind_start':       'Inducer Start',
+    'ind_end':         'Inducer End',
+    'r':               'Repressor Start',
+    'or':              'Operator',
+}
+
+
+# =============================================================================
+# REGULATORS
+# =============================================================================
+
+# All regulator component types (start + end variants)
+REGULATOR_TYPES = (
+    'repressor_start', 'repressor_end',
+    'activator_start', 'activator_end',
+    'inducer_start',   'inducer_end',
+    'inhibitor_start', 'inhibitor_end',
+)
+
+# Regulator types that come in start/end pairs (same as above, but named for intent)
+REGULATOR_START_END_TYPES = REGULATOR_TYPES
+
+# Base regulator names (without _start / _end suffix)
+REGULATOR_BASE_TYPES = (
+    'repressor',
+    'activator',
+    'inducer',
+    'inhibitor',
+)
+
+
+# =============================================================================
+# HARDWARE
+# =============================================================================
+
+# Linear channel offsets for each MUX letter.
+# MUX A: 0-15, B: 16-31, ..., G: 96-111
+MUX_OFFSETS = {
+    'A': 0,
+    'B': 16,
+    'C': 32,
+    'D': 48,
+    'E': 64,
+    'F': 80,
+    'G': 96,
+}
+
+
+# =============================================================================
+# SIMULATION
+# =============================================================================
+
+SIMULATION_TIME_HOURS = 24
+SIMULATION_STEPS = 200
+
+ALLOWED_COLORMAPS = {'cool', 'spring', 'autumn', 'turbo', 'plasma'}
+DEFAULT_COLORMAP = 'cool'
+
+
+# =============================================================================
+# DIAL
+# =============================================================================
+
+# Global (non-component-specific) dial parameters.
+GLOBAL_DIAL_PARAMS = (
+    'global_transcription_rate',
+    'global_translation_rate',
+    'global_degradation_rate',
+    'temperature_factor',
+    'resource_availability',
+)
+
+
+# =============================================================================
+# APP / EXPORT
+# =============================================================================
+
+EXPORT_FILES = [
+    'app.py',
+    'main.py',
+    'circuit_model.py',
+    'constants.py',
+    'pyproject.toml',
+    'replit.md',
+]
