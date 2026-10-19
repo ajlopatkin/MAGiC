@@ -6,6 +6,7 @@
   <title>MAGiC - Genetic Circuit Designer</title>
   <link href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/driver.js@1.0.1/dist/driver.css" rel="stylesheet">
   <link href="{{ url_for('static', filename='css/styles.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='css/dial.css') }}" rel="stylesheet">
   <style>
@@ -163,7 +164,99 @@
       width: 120px;
       opacity: 0.8;
     }
-    
+
+    /* ── Tour Prompt ──────────────────────────────────────── */
+    .tour-prompt {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        max-width: 300px;
+        padding: 1.25rem 1.5rem;
+        background: linear-gradient(135deg,
+            rgba(32, 44, 45, 0.95) 0%,
+            rgba(27, 38, 39, 0.95) 100%);
+        border: 1px solid rgba(178, 243, 95, 0.3);
+        border-radius: 14px;
+        box-shadow:
+            0 12px 32px rgba(0, 0, 0, 0.4),
+            inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+        z-index: 999;
+        animation: tourPromptIn 0.4s ease-out;
+    }
+
+    @keyframes tourPromptIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .tour-prompt-close {
+        position: absolute;
+        top: 8px;
+        right: 10px;
+        background: none;
+        border: none;
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 1.4rem;
+        line-height: 1;
+        cursor: pointer;
+        padding: 0.2rem 0.4rem;
+        transition: color 0.2s;
+    }
+
+    .tour-prompt-close:hover {
+        color: rgba(178, 243, 95, 0.9);
+    }
+
+    .tour-prompt-title {
+        margin: 0 0 0.4rem 0;
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: rgba(178, 243, 95);
+        letter-spacing: -0.01em;
+    }
+
+    .tour-prompt-text {
+        margin: 0 0 1rem 0;
+        font-size: 0.9rem;
+        color: rgba(232, 232, 232, 0.8);
+        line-height: 1.4;
+    }
+
+    .tour-prompt-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .tour-prompt-btn {
+        flex: 1;
+        padding: 0.5rem 0.9rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.05);
+        color: rgba(232, 232, 232, 0.9);
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .tour-prompt-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.25);
+    }
+
+    .tour-prompt-btn.primary {
+        background: rgba(178, 243, 95, 0.15);
+        border-color: rgba(178, 243, 95, 0.4);
+        color: rgba(178, 243, 95);
+    }
+
+    .tour-prompt-btn.primary:hover {
+        background: rgba(178, 243, 95, 0.25);
+        border-color: rgba(178, 243, 95, 0.6);
+    }
+
     @media (max-width: 768px) {
       .welcome-text {
         font-size: 48px;
@@ -179,6 +272,12 @@
         padding: 1rem 2rem;
         font-size: 1rem;
       }
+      .tour-prompt {
+        bottom: 16px;
+        right: 16px;
+        left: 16px;
+        max-width: none;
+      }
     }
   </style>
 </head>
@@ -190,7 +289,18 @@
       <i class="fas fa-dna dna-icon" style="left:50%; animation-duration:18s; animation-delay:3s;"></i>
       <i class="fas fa-dna dna-icon" style="left:85%; animation-duration:22s; animation-delay:6s;"></i>
     </div>
-    
+
+    <!-- Tour Prompt (hidden by default) -->
+    <div id="tour-prompt" class="tour-prompt" style="display: none;">
+      <button id="tour-prompt-close" class="tour-prompt-close" aria-label="Close">×</button>
+      <h4 class="tour-prompt-title">New here?</h4>
+      <p class="tour-prompt-text">Take a 30-second tour of virtual and board mode.</p>
+      <div class="tour-prompt-actions">
+        <button id="tour-start" class="tour-prompt-btn primary">Start Tour</button>
+        <button id="tour-skip" class="tour-prompt-btn">No thanks</button>
+      </div>
+    </div>
+
     <div class="welcome-container">
       <h1 class="welcome-text">Welcome to MAGiC</h1>
       <p class="welcome-subtitle">Modular Approach to Genetic Circuit Design</p>
@@ -213,5 +323,11 @@
       <img src="static/css/attached_assests/Lopatkin Lab_Logo-C11.png" alt="Lopatkin Lab" class="lab-logo">
     </div>
   </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/driver.js@1.0.1/dist/driver.iife.js"></script>
+  <script src="{{ url_for('static', filename='js/tour.js') }}"></script>
+  <script>
+    window.Tour.initHomePrompt();
+  </script>
 </body>
 </html>
