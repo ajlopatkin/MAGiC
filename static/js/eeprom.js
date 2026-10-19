@@ -940,6 +940,7 @@ function updateCellDisplay(x, y, componentType, componentNumber, customName = nu
     // Add click event for parameter editing (now includes regulators)
     display.addEventListener('click', function(e) {
         e.stopPropagation();
+        if (window.SensitivitySweep?.selectComponent(componentType, x, y, componentNumber, component)) return;
         showComponentParameterModal(x, y, componentType, componentNumber, component);
     });
     
@@ -1142,276 +1143,9 @@ function removeDynamicParameterSection(componentType, componentNumber) {
 // ===== COMPONENT PARAMETER SYSTEM =====
 // Get parameters for a specific component type
 function getComponentParameters(componentType, componentNumber) {
-    const baseType = componentType.toLowerCase().replace(' ', '_');
-    const num = componentNumber;
-    
-    // Get defaults from boardState (loaded from API) or use fallback
-    const defaults = boardState.parameterDefaults || {};
-    const ranges = boardState.parameterRanges || {};
-    
-    const commonParams = {
-        'Promoter': [
-            {
-                id: `promoter${num}_strength`,
-                label: 'Promoter Strength:',
-                min: ranges.strength?.[0] || 0.1,
-                max: ranges.strength?.[1] || 5.0,
-                step: 0.1,
-                defaultValue: defaults.promoter_strength || 5.0,
-                title: 'Transcription rate from this promoter (arbitrary units)'
-            }
-        ],
-        'RBS': [
-            {
-                id: `rbs${num}_efficiency`,
-                label: 'RBS Efficiency:',
-                min: ranges.efficiency?.[0] || 0.1,
-                max: ranges.efficiency?.[1] || 2.0,
-                step: 0.1,
-                defaultValue: defaults.rbs_efficiency || 1.0,
-                title: 'Translational efficiency — scales protein production rate'
-            }
-        ],
-        'CDS': [
-            {
-                id: `cds${num}_translation_rate`,
-                label: 'CDS Translation Rate:',
-                min: ranges.translation_rate?.[0] || 1.0,
-                max: ranges.translation_rate?.[1] || 20.0,
-                step: 0.5,
-                defaultValue: defaults.cds_translation_rate || 7.0,
-                title: 'Rate of protein production from this coding sequence'
-            },
-            {
-                id: `cds${num}_degradation_rate`,
-                label: 'CDS Degradation Rate:',
-                min: ranges.degradation_rate?.[0] || 0.01,
-                max: ranges.degradation_rate?.[1] || 1.0,
-                step: 0.01,
-                defaultValue: defaults.cds_degradation_rate || 1.0,
-                title: 'Rate at which this protein is broken down (per hour)'
-            },
-            {
-                id: `protein${num}_initial_conc`,
-                label: 'Initial Protein Conc:',
-                min: 0.0,
-                max: 2.0,
-                step: 0.05,
-                defaultValue: defaults.cds_init_conc || 0.0,
-                title: 'Starting concentration (µM) - affects oscillation dynamics'
-            }
-        ],
-        'Terminator': [
-            {
-                id: `terminator${num}_efficiency`,
-                label: 'Terminator Efficiency:',
-                min: 0.1,
-                max: 1.0,
-                step: 0.01,
-                defaultValue: defaults.terminator_efficiency || 0.99,
-                title: 'Fraction of transcription terminated — 0.99 = nearly complete stop'
-            }
-        ],
-        'Repressor Start': [
-            {
-                id: `repressor${num}_Kr`,
-                label: 'Repression Constant (Kr):',
-                min: 0.01,
-                max: 2.0,
-                step: 0.01,
-                defaultValue: 0.35,
-                title: 'Lower Kr = stronger repression'
-            },
-            {
-                id: `repressor${num}_n`,
-                label: 'Cooperativity (n):',
-                min: 1,
-                max: 6,
-                step: 1,
-                defaultValue: 2,
-                title: 'Hill coefficient: higher values = sharper response'
-            },
-        ],
-        'Repressor End': [
-            {
-                id: `repressor${num}_Kr`,
-                label: 'Repression Constant (Kr):',
-                min: 0.01,
-                max: 2.0,
-                step: 0.01,
-                defaultValue: 0.35,
-                title: 'Lower Kr = stronger repression'
-            },
-            {
-                id: `repressor${num}_n`,
-                label: 'Cooperativity (n):',
-                min: 1,
-                max: 6,
-                step: 1,
-                defaultValue: 2,
-                title: 'Hill coefficient - higher values = sharper response'
-            },
-        ],
-        'Activator Start': [
-            {
-                id: `activator${num}_Ka`,
-                label: 'Activation Constant (Ka):',
-                min: 0.01,
-                max: 2.0,
-                step: 0.01,
-                defaultValue: 0.4,
-                title: 'Lower Ka = stronger activation'
-            },
-            {
-                id: `activator${num}_n`,
-                label: 'Cooperativity (n):',
-                min: 1,
-                max: 6,
-                step: 1,
-                defaultValue: 2,
-                title: 'Hill coefficient: higher values = sharper response'
-            },
-        ],
-        'Activator End': [
-            {
-                id: `activator${num}_Ka`,
-                label: 'Activation Constant (Ka):',
-                min: 0.01,
-                max: 2.0,
-                step: 0.01,
-                defaultValue: 0.4,
-                title: 'Lower Ka = stronger activation'
-            },
-            {
-                id: `activator${num}_n`,
-                label: 'Cooperativity (n):',
-                min: 1,
-                max: 6,
-                step: 1,
-                defaultValue: 2,
-                title: 'Hill coefficient: higher values = sharper response'
-            },
-        ],
-        'Inducer Start': [
-            {
-                id: `inducer${num}_Ka`,
-                label: 'Inducer Strength:',
-                min: 0.01,
-                max: 2.0,
-                step: 0.01,
-                defaultValue: 0.5,
-                title: 'Binding constant (Ka): lower Ka = induced at lower concentrations'
-            },
-            {
-                id: `inducer${num}_n`,
-                label: 'Cooperativity (n):',
-                min: 1,
-                max: 6,
-                step: 1,
-                defaultValue: 2,
-                title: 'Hill coefficient - higher values = sharper response'
-            },
-            {
-                id: `inducer${num}_concentration`,
-                label: 'Initial Concentration:',
-                min: 0,
-                max: 5,
-                step: 0.1,
-                defaultValue: 1.0,
-                title: 'Concentration of external inducer'
-            }
-        ],
-        'Inducer End': [
-            {
-                id: `inducer${num}_Ka`,
-                label: 'Inducer Strength:',
-                min: 0.01,
-                max: 2.0,
-                step: 0.01,
-                defaultValue: 0.5,
-                title: 'Binding constant (Ka): lower Ka = induced at lower concentrations'
-            },
-            {
-                id: `inducer${num}_n`,
-                label: 'Cooperativity (n):',
-                min: 1,
-                max: 6,
-                step: 1,
-                defaultValue: 2,
-                title: 'Hill coefficient - higher values = sharper response'
-            },
-            {
-                id: `inducer${num}_concentration`,
-                label: 'External Concentration:',
-                min: 0,
-                max: 5,
-                step: 0.1,
-                defaultValue: 1.0,
-                title: 'Concentration of external inducer'
-            }
-        ],
-        'Inhibitor Start': [
-            {
-                id: `inhibitor${num}_Kr`,
-                label: 'Inhibitor Strength:',
-                min: 0.01,
-                max: 2.0,
-                step: 0.01,
-                defaultValue: 0.5,
-                title: 'Binding constant (Kr): lower Kr = inhibited at lower concentrations'
-            },
-            {
-                id: `inhibitor${num}_n`,
-                label: 'Cooperativity (n):',
-                min: 1,
-                max: 6,
-                step: 1,
-                defaultValue: 2,
-                title: 'Hill coefficient - higher values = sharper response'
-            },
-            {
-                id: `inhibitor${num}_concentration`,
-                label: 'External Concentration:',
-                min: 0,
-                max: 5,
-                step: 0.1,
-                defaultValue: 1.0,
-                title: 'Concentration of external inhibitor'
-            }
-        ],
-        'Inhibitor End': [
-            {
-                id: `inhibitor${num}_Kr`,
-                label: 'Inhibitor Strength:',
-                min: 0.01,
-                max: 2.0,
-                step: 0.01,
-                defaultValue: 0.5,
-                title: 'Binding constant (Kr): lower Kr = inhibited at lower concentrations'
-            },
-            {
-                id: `inhibitor${num}_n`,
-                label: 'Cooperativity (n):',
-                min: 1,
-                max: 6,
-                step: 1,
-                defaultValue: 2,
-                title: 'Hill coefficient - higher values = sharper response'
-            },
-            {
-                id: `inhibitor${num}_concentration`,
-                label: 'External Concentration:',
-                min: 0,
-                max: 5,
-                step: 0.1,
-                defaultValue: 1.0,
-                title: 'Concentration of external inhibitor'
-            }
-        ]
-    };
-    
-    return commonParams[componentType] || [];
-}
+    return (window.MAGIC_PARAMETER_SCHEMA?.[componentType] || [])
+        .map(p => ({...p, id: p.key.replace("{num}", componentNumber)}));
+} 
 
 // Synchronize parameters between regulator Start/End pairs
 function syncRegulatorPair(sourceType, sourceNumber, paramId, newValue) {
@@ -4421,6 +4155,7 @@ function createPlacedComponent(cell, component) {
     // Add click event for parameter editing (CRITICAL FIX)
     placedEl.addEventListener('click', function(e) {
         e.stopPropagation();
+        if (window.SensitivitySweep?.selectComponent(component.type, x, y, stateComponent.number, stateComponent)) return;
         showComponentParameterModal(x, y, component.type, stateComponent.number, stateComponent);
     });
     
@@ -4721,8 +4456,8 @@ function clearLogAndBoard() {
 // Removed duplicate global runSimulation function to avoid conflicts
 // The runSimulation function is properly defined within the component initialization scope
 
-async function runSimulationFromPlacedComponents() {
-    const runToken = window.SensitivityAnalysis?.beginRun();
+async function runSimulationFromPlacedComponents(options = {}) {
+    const runToken = options.snapshot ? null : window.SensitivityAnalysis?.beginRun();
     console.log('=== RUNNING SIMULATION FROM PLACED COMPONENTS ===');
     
     const errorDisplay = document.getElementById('error-display');
@@ -4731,13 +4466,13 @@ async function runSimulationFromPlacedComponents() {
     const simulateBtn = document.getElementById('simulate-btn');
     
     // Clear previous errors
-    if (errorDisplay) {
+    if (errorDisplay && !options.snapshot) {
         errorDisplay.style.display = 'none';
         errorDisplay.textContent = '';
     }
 
     // Show loading in plot container
-    if (plotContainer) {
+    if (plotContainer && !options.snapshot) {
         plotContainer.innerHTML = `
             <div class="loading">
                 <div class="loading-spinner"></div>
@@ -4856,7 +4591,8 @@ async function runSimulationFromPlacedComponents() {
                 number: (existingComponent && existingComponent.number != null)
                     ? existingComponent.number
                     : componentCounts[baseType],
-                pair_id: (existingComponent && existingComponent.pair_id != null) ? existingComponent.pair_id : null
+                pair_id: instanceToPairId.get(existingComponent?.componentInstance) ??
+                    existingComponent?.pair_id ?? null
             };
             
             
@@ -4892,19 +4628,25 @@ async function runSimulationFromPlacedComponents() {
 
             const dialData = {};
 
-            // The toggle controls only global multipliers.
+            // The toggle controls only global multipliers. Component-specific
+            // edits must be sent on every run.
+
             if (includeDial) {
-                const inputs = dialForm.querySelectorAll(
-                    'input[type="number"]:not([disabled])'
-                );
+                // Collect global parameters from dial form
+                const inputs = dialForm.querySelectorAll('input[type="number"]:not([disabled])');
+                console.log(`[COLLECT] Collecting ${inputs.length} global parameter inputs`);
+  
                 inputs.forEach(input => {
                     const paramName = input.name || input.id;
                     const value = parseFloat(input.value);
                     if (!isNaN(value) && paramName) {
                         dialData[paramName] = value;
+                        console.log(`  [COLLECT] Global - ${paramName}: ${value}`);
                     }
                 });
             } else {
+                // When toggle is OFF, neutralize only the global multipliers.
+                console.log('Global multipliers are OFF; component-specific edits remain active.');
                 dialData.global_transcription_rate = 1.0;
                 dialData.global_translation_rate = 1.0;
                 dialData.global_degradation_rate = 1.0;
@@ -4912,23 +4654,11 @@ async function runSimulationFromPlacedComponents() {
                 dialData.resource_availability = 1.0;
             }
 
-            // This must be OUTSIDE the if (includeDial) block:
-            // individual component edits apply in both toggle states.
-            Object.values(cellboard).forEach(components => {
-                components.forEach(comp => {
-                    Object.entries(comp.parameters || {}).forEach(
-                        ([paramId, paramValue]) => {
-                            const numericValue = Number(paramValue);
-                            if (Number.isFinite(numericValue)) {
-                                dialData[paramId] = numericValue;
-                            }
-                        }
-                    );
-                });
-            });
-
             requestData.dial = dialData;
+            console.log(`[COLLECT] Global dial parameters collected: ${Object.keys(dialData).length}`);
+            console.log('[COLLECT] Final dialData:', dialData);
         } else {
+            console.warn('No dial form found - parameters will not be applied');
             requestData.apply_dial = false;
         }
         
@@ -4936,6 +4666,9 @@ async function runSimulationFromPlacedComponents() {
         const _colormapEl = document.getElementById('colormap-select');
         requestData.colormap = _colormapEl ? _colormapEl.value : 'cool';
         
+        // The sweep runner freezes this serializable request once. Neither the
+        // board objects nor their modal values are changed by sweep requests.
+        if (options.snapshot) return JSON.parse(JSON.stringify(requestData));
 
         console.log('Sending simulation request:', requestData);
         
@@ -5745,6 +5478,7 @@ async function runSimulationFromPlacedComponents() {
 
     } catch (error) {
         console.error('Simulation failed:', error);
+        if (options.snapshot) throw error;
         
         // Display error
         if (errorDisplay) {
@@ -5765,7 +5499,7 @@ async function runSimulationFromPlacedComponents() {
 
     } finally {
         // Re-enable button
-        if (simulateBtn) {
+        if (simulateBtn && !options.snapshot) {
             simulateBtn.disabled = false;
             simulateBtn.innerHTML = '<i class="fas fa-play me-2"></i>Run Simulation';
         }
