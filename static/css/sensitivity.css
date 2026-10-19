@@ -1,0 +1,219 @@
+.sensitivity-selecting .placed-component {
+    cursor: crosshair;
+    outline: 2px dashed #c9d8a1;
+    outline-offset: 2px;
+}
+.placed-component.sensitivity-selected {
+    outline: 3px solid #e3c664;
+    outline-offset: 2px;
+}
+/* Optional sensitivity analysis, scoped to the results panel. */
+.sensitivity-panel {
+    margin-top: 1rem;
+    padding: 1rem 1.125rem;
+    color: #e5ebe6;
+    background: rgba(27, 38, 39, 0.92);
+    border: 1px solid rgba(178, 243, 95, 0.23);
+    border-radius: var(--border-radius, 8px);
+}
+
+.sensitivity-panel__header,
+.sensitivity-panel__toolbar,
+.sensitivity-panel__actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75rem 1rem;
+}
+
+.sensitivity-panel__heading {
+    min-width: 0;
+}
+
+.sensitivity-panel__eyebrow {
+    display: block;
+    margin-bottom: 0.125rem;
+    color: #b2f35f;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.results .sensitivity-panel h3 {
+    margin: 0;
+    color: #f1f5ef;
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.sensitivity-panel__toggle,
+.sensitivity-panel__action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    padding: 0.45rem 0.85rem;
+    border: 1px solid rgba(178, 243, 95, 0.45);
+    border-radius: 7px;
+    background: rgba(178, 243, 95, 0.1);
+    color: #d6f6a9;
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1.25;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.sensitivity-panel__toggle:hover,
+.sensitivity-panel__action:not(:disabled):not([aria-disabled="true"]):hover {
+    background: rgba(178, 243, 95, 0.2);
+    color: #f0ffd9;
+    border-color: #b2f35f;
+}
+
+.sensitivity-panel__toggle[aria-pressed="true"] {
+    background: #b2f35f;
+    color: #1b2627;
+}
+
+.sensitivity-panel__content {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(178, 243, 95, 0.16);
+}
+
+.sensitivity-panel__content[hidden],
+.sensitivity-panel__runs[hidden],
+.sensitivity-panel__plot[hidden] {
+    display: none !important;
+}
+
+.sensitivity-panel__description,
+.sensitivity-panel__status {
+    margin: 0 0 0.9rem;
+    color: #bcc9c2;
+    font-size: 0.83rem;
+    line-height: 1.55;
+}
+
+.sensitivity-panel__toolbar {
+    align-items: end;
+    justify-content: flex-start;
+    margin-bottom: 0.9rem;
+}
+
+.sensitivity-panel__field {
+    display: grid;
+    gap: 0.35rem;
+    width: min(100%, 280px);
+}
+
+.sensitivity-panel__field label {
+    color: #e5ebe6;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.sensitivity-panel__field select {
+    width: 100%;
+    min-height: 38px;
+    padding: 0.4rem 0.7rem;
+    border: 1px solid rgba(178, 243, 95, 0.25);
+    border-radius: 7px;
+    background: #202c2d;
+    color: #f1f5ef;
+    font: inherit;
+    font-size: 0.85rem;
+}
+
+.sensitivity-panel__count {
+    padding: 0.4rem 0;
+    color: #b2f35f;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    white-space: nowrap;
+}
+
+.sensitivity-panel__status {
+    margin-bottom: 0.65rem;
+}
+
+.sensitivity-panel__runs {
+    display: grid;
+    gap: 0.4rem;
+    max-height: 190px;
+    overflow-y: auto;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.82rem;
+}
+
+.sensitivity-panel__runs li {
+    padding: 0.55rem 0.7rem;
+    border: 1px solid rgba(178, 243, 95, 0.13);
+    border-radius: 6px;
+    background: rgba(178, 243, 95, 0.045);
+}
+
+.sensitivity-panel__plot {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 0.9rem auto 0;
+    border-radius: 7px;
+}
+
+.sensitivity-panel__actions {
+    justify-content: flex-start;
+    margin-top: 0.9rem;
+}
+
+.sensitivity-panel__action:disabled,
+.sensitivity-panel__action[aria-disabled="true"] {
+    opacity: 0.48;
+    cursor: not-allowed;
+}
+
+.sensitivity-panel :is(button, select, a):focus-visible {
+    outline: 2px solid #b2f35f;
+    outline-offset: 3px;
+}
+
+@media (max-width: 540px) {
+    .sensitivity-panel {
+        padding: 0.85rem;
+    }
+
+    .sensitivity-panel__header {
+        align-items: flex-start;
+    }
+
+    .sensitivity-panel__field {
+        width: 100%;
+    }
+
+    .sensitivity-panel__actions > * {
+        flex: 1 1 140px;
+    }
+}
+.sensitivity-panel__steps { margin: 0 0 0.75rem; padding-left: 1.2rem; color: #e5ebe6; font-size: 0.83rem; line-height: 1.6; }
+.sensitivity-panel__setup { margin: 0 0 0.9rem; padding: 0.8rem; border: 1px solid rgba(178, 243, 95, 0.16); border-radius: 7px; min-width: 0; }
+.sensitivity-panel__setup legend { padding: 0 0.4rem; color: #b2f35f; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+.sensitivity-panel__row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; margin: 0.4rem 0; }
+.sensitivity-panel__target { font-size: 0.82rem; color: #bcc9c2; }
+.sensitivity-panel__target strong { color: #f1f5ef; }
+.sensitivity-panel__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin: 0.7rem 0; }
+.sensitivity-panel__grid .sensitivity-panel__field, .sensitivity-panel__setup .sensitivity-panel__field { width: 100%; }
+.sensitivity-panel__field input[type="number"] { width: 100%; min-height: 38px; padding: 0.4rem 0.7rem; border: 1px solid rgba(178, 243, 95, 0.25); border-radius: 7px; background: #202c2d; color: #f1f5ef; font: inherit; font-size: 0.85rem; box-sizing: border-box; }
+.sensitivity-panel__preview { margin: 0 0 0.6rem; color: #d6f6a9; font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; line-height: 1.5; overflow-wrap: anywhere; }
+.sensitivity-panel__action--primary { background: #b2f35f; color: #1b2627; }
+.sensitivity-panel__axis { display: flex; align-items: center; gap: 0.5rem; color: #bcc9c2; font-size: 0.8rem; }
+.sensitivity-panel__check { display: flex; align-items: center; gap: 0.4rem; font-weight: 400 !important; color: #bcc9c2 !important; }
+.sensitivity-panel__field--axis { width: min(100%, 300px); }
+.sensitivity-panel input:focus-visible { outline: 2px solid #b2f35f; outline-offset: 3px; }
+.sensitivity-panel input:disabled { opacity: 0.5; }

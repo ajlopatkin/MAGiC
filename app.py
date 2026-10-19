@@ -4,6 +4,9 @@ import json
 import base64
 import zipfile
 import tempfile
+import copy
+import math
+import re
 from io import BytesIO
 from datetime import datetime
 
@@ -19,6 +22,8 @@ import matplotlib.colors as mcolors
 
 from circuit_model import OntologyBuilderUnified, simulate_circuit
 from constants import COMPONENT_CONSTANTS
+from parameter_schema import COMPONENT_PARAMETER_SCHEMA
+
 
 last_simulation_export_data = None
 
@@ -135,6 +140,281 @@ CORS(app)
 
 # Initialize circuit model with constants
 circuit_builder = OntologyBuilderUnified(COMPONENT_CONSTANTS)
+@app.context_processor
+def inject_component_parameter_schema():
+    """Expose the single authoritative parameter schema to Jinja templates."""
+    # Match the tuned Matplotlib sampling ranges in the ordinary simulation
+    # plot. Supply exact colours for every supported sweep size, including a
+    # single retained curve after cancellation/removal.
+    colormap_ranges = {
+        'cool': (0.05, 0.95),
+        'spring': (0.05, 0.95),
+        'autumn': (0.00, 0.95),
+        'turbo': (0.10, 0.90),
+        'plasma': (0.18, 0.78),
+    }
+
+    palettes = {}
+    for name, (lower, upper) in colormap_ranges.items():
+        cmap = matplotlib.colormaps.get_cmap(name)
+        palettes[name] = {
+            count: [
+                mcolors.to_hex(cmap(position))
+                for position in (
+                    [(lower + upper) / 2] if count == 1
+                    else np.linspace(lower, upper, count)
+                )
+            ]
+            for count in range(1, 11)
+        }
+
+    return {
+        'component_parameter_schema': COMPONENT_PARAMETER_SCHEMA,
+        'sensitivity_colormaps': palettes,
+    }
+
+
+def _finite_number(value, field_name):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"Comparison {field_name} must be a finite number.")
+
+    if not math.isfinite(number):
+        raise ValueError(f"Comparison {field_name} must be a finite number.")
+
+    return number
+
+
+def _apply_sweep(cellboard, sweep):
+    """Validate and apply one sweep point to copied board data."""
+    if not isinstance(sweep, dict):
+        raise ValueError("Comparison must be an object.")
+
+    required = ('type', 'x', 'y', 'parameter', 'lower', 'upper', 'count', 'index')
+    missing = [field for field in required if field not in sweep]
+
+    if missing:
+        raise ValueError(
+            f"Comparison is missing required field(s): {', '.join(missing)}."
+        )
+
+    component_type = sweep['type']
+    parameter_template = sweep['parameter']
+
+    if (
+        not isinstance(component_type, str)
+        or component_type not in COMPONENT_PARAMETER_SCHEMA
+    ):
+        raise ValueError(
+            f"Unsupported comparison component type: {component_type!r}."
+        )
+
+    if not isinstance(parameter_template, str):
+        raise ValueError(
+            "Comparison parameter must be a schema parameter key template."
+        )
+
+    definition = next(
+        (
+            item
+            for item in COMPONENT_PARAMETER_SCHEMA[component_type]
+            if item['key'] == parameter_template
+        ),
+        None,
+    )
+
+    if definition is None:
+        raise ValueError(
+            f"Parameter {parameter_template!r} is not editable for "
+            f"{component_type!r}."
+        )
+
+    lower = _finite_number(sweep['lower'], 'lower bound')
+    upper = _finite_number(sweep['upper'], 'upper bound')
+
+    if lower >= upper:
+        raise ValueError("Comparison lower bound must be less than upper bound.")
+
+    if lower < definition['min'] or upper > definition['max']:
+        raise ValueError(
+            f"Comparison bounds must be within {definition['min']} and "
+            f"{definition['max']} for {parameter_template}."
+        )
+
+    def integer_field(value, label):
+        if isinstance(value, bool):
+            raise ValueError(f"Comparison {label} must be an integer.")
+
+        try:
+            parsed = int(value)
+            if float(value) != parsed:
+                raise ValueError
+        except (TypeError, ValueError, OverflowError):
+            raise ValueError(f"Comparison {label} must be an integer.")
+
+        return parsed
+
+    count = integer_field(sweep['count'], 'count')
+    index = integer_field(sweep['index'], 'index')
+
+    if not 2 <= count <= 10:
+        raise ValueError("Comparison count must be between 2 and 10.")
+
+    if not 0 <= index < count:
+        raise ValueError(
+            f"Comparison index must be between 0 and {count - 1}."
+        )
+
+    increment = (upper - lower) / (count - 1)
+
+    if definition['integer']:
+        if (
+            not lower.is_integer()
+            or not upper.is_integer()
+            or not increment.is_integer()
+        ):
+            raise ValueError(
+                "Cooperativity comparison bounds must produce evenly "
+                "spaced integer values."
+            )
+
+    values = [
+        upper if i == count - 1 else lower + increment * i
+        for i in range(count)
+    ]
+
+    if len(set(values)) != count:
+        raise ValueError(
+            "Comparison bounds are too close to produce distinct values."
+        )
+
+    value = values[index]
+
+    if definition['integer']:
+        value = int(round(value))
+
+    try:
+        target_x = _finite_number(sweep['x'], 'x coordinate')
+        target_y = _finite_number(sweep['y'], 'y coordinate')
+    except ValueError as error:
+        raise ValueError(str(error))
+
+    components_of_type = cellboard.get(component_type, [])
+
+    if not isinstance(components_of_type, list):
+        raise ValueError(
+            f"Cellboard entry for {component_type!r} must be a list."
+        )
+
+    matches = [
+        component
+        for component in components_of_type
+        if isinstance(component, dict)
+        and _coordinates_match(component, target_x, target_y)
+    ]
+
+    if len(matches) != 1:
+        raise ValueError(
+            f"Expected exactly one {component_type!r} at "
+            f"({sweep['x']}, {sweep['y']}); found {len(matches)}."
+        )
+
+    target = matches[0]
+
+    parameter_targets = [target]
+
+    regulator_pairs = {
+        'Repressor Start': 'Repressor End',
+        'Repressor End': 'Repressor Start',
+        'Activator Start': 'Activator End',
+        'Activator End': 'Activator Start',
+        'Inducer Start': 'Inducer End',
+        'Inducer End': 'Inducer Start',
+        'Inhibitor Start': 'Inhibitor End',
+        'Inhibitor End': 'Inhibitor Start',
+    }
+
+    if component_type in regulator_pairs:
+        partner_type = regulator_pairs[component_type]
+        partner_components = cellboard.get(partner_type, [])
+
+        if not isinstance(partner_components, list):
+            raise ValueError(
+                f"Cellboard entry for {partner_type!r} must be a list."
+            )
+
+        if target.get('pair_id') is not None:
+            partners = [
+                component
+                for component in partner_components
+                if isinstance(component, dict)
+                and component.get('pair_id') is not None
+                and str(component.get('pair_id')) == str(target.get('pair_id'))
+            ]
+        else:
+            occurrence = next(
+                i
+                for i, component in enumerate(components_of_type)
+                if component is target
+            )
+            partners = partner_components[occurrence:occurrence + 1]
+
+        if len(partners) == 1:
+            parameter_targets.append(partners[0])
+        elif target.get('pair_id') is not None:
+            raise ValueError(
+                f"No unique {partner_type!r} partner found for pair_id "
+                f"{target.get('pair_id')!r}."
+            )
+
+    for component in parameter_targets:
+        if not isinstance(component.get('parameters'), dict):
+            component['parameters'] = {}
+
+        component_number = component.get('number')
+
+        if component_number is None:
+            if component.get('pair_id') is not None:
+                component_number = component['pair_id']
+            else:
+                kind = component.get('type')
+                component_number = cellboard.get(kind, []).index(component) + 1
+
+        try:
+            numbered_key = parameter_template.replace(
+                '{num}',
+                str(int(component_number)),
+            )
+        except (TypeError, ValueError, OverflowError):
+            raise ValueError(
+                f"Invalid component number for {component_type!r}."
+            )
+
+        component['parameters'][numbered_key] = value
+
+    return {
+        'type': component_type,
+        'x': sweep['x'],
+        'y': sweep['y'],
+        'parameter': parameter_template,
+        'lower': lower,
+        'upper': upper,
+        'count': count,
+        'index': index,
+        'value': value,
+    }
+
+
+def _coordinates_match(component, x, y):
+    try:
+        return (
+            float(component.get('x', 0)) == x
+            and float(component.get('y', 0)) == y
+        )
+    except (TypeError, ValueError):
+        return False
+    
 
 @app.route('/')
 def loading():
@@ -173,26 +453,74 @@ def simulate():
                 'message': 'Invalid request data. Expected cellboard configuration.'
             }), 400
         
-        cellboard = data['cellboard']
 
+        if not isinstance(data['cellboard'], dict):
+            return jsonify({
+                'status': 'error',
+                'message': 'Invalid cellboard configuration. Expected a component mapping.'
+            }), 400
+
+        cellboard = copy.deepcopy(data['cellboard'])
+        sweep_metadata = None
+
+        if 'sweep' in data and data['sweep'] is not None:
+            try:
+                sweep_metadata = _apply_sweep(cellboard, data['sweep'])
+            except ValueError as error:
+                return jsonify({'status': 'error', 'message': str(error)}), 400
+
+        # Translation rate is intentionally not an editable per-CDS parameter.
+        # Ignore values cached by older modal versions, but retain the global
+        # translation multiplier, which still scales the model's internal rate.
+        for components in cellboard.values():
+            if not isinstance(components, list):
+                continue
+
+            for component in components:
+                if (
+                    isinstance(component, dict)
+                    and isinstance(component.get('parameters'), dict)
+                ):
+                    for parameter_key in list(component['parameters']):
+                        if re.fullmatch(r'cds\d+_translation_rate', parameter_key):
+                            component['parameters'].pop(parameter_key, None)
        
         # Explicit flag from client telling whether dial overrides should be applied
         apply_dial = bool(data.get('apply_dial', False))
         # Always use dial_data if present (it contains 1.0 defaults when toggle is off)
-        dial_data = data.get('dial', {})
         
-        
-        # Keep individual edits, but ignore global multipliers when switched off.
+        dial_data = copy.deepcopy(data.get('dial', {}))
+
+        if not isinstance(dial_data, dict):
+            return jsonify({
+                'status': 'error',
+                'message': 'Dial parameters must be an object.'
+            }), 400
+
+        if sweep_metadata:
+            dial_data = {
+                key: value for key, value in dial_data.items()
+                if not re.match(
+                    r'^(?:promoter|rbs|cds|protein|terminator|repressor|activator|inducer|inhibitor)\d+_',
+                    key,
+                )
+            }
+
+        # The toggle controls global multipliers only. Never let a stale or
+        # manually submitted global value affect a run with the toggle off.
+                
+                
+       
         if not apply_dial:
             global_keys = {
                 'global_transcription_rate', 'global_translation_rate',
                 'global_degradation_rate', 'temperature_factor',
                 'resource_availability',
             }
-            dial_data = {
-                key: value for key, value in dial_data.items()
-                if key not in global_keys
-            }
+            dial_data = {key: value for key, value in dial_data.items()
+
+                        if key not in global_keys}
+
 
         # Debug logging
         print(f"\n{'='*80}")
@@ -295,25 +623,6 @@ def simulate():
         # Create hardware txt file format lines
         final_lines = []
         last_pos = -1
-        
-        modal_global_factors = {
-            ('promoter', 'strength'): (
-                'global_transcription_rate',
-                'temperature_factor',
-                'resource_availability',
-            ),
-            ('rbs', 'efficiency'): (
-                'global_translation_rate',
-                'resource_availability',
-            ),
-            ('cds', 'translation_rate'): (
-                'global_translation_rate',
-                'temperature_factor',
-            ),
-            ('cds', 'degradation_rate'): (
-                'global_degradation_rate',
-            ),
-        }
 
         for comp in placed_components:
             pos = comp['position']
@@ -339,7 +648,7 @@ def simulate():
         
         # Apply dial adjustments to constants if provided
         # IMPORTANT: Use deep copy to avoid modifying the original constants
-        import copy
+
         adjusted_constants = copy.deepcopy(COMPONENT_CONSTANTS)
         
         # Process dial parameters for component-specific overrides
@@ -379,14 +688,6 @@ def simulate():
                                 component_overrides[comp_key] = {}
                             component_overrides[comp_key]['efficiency'] = float(value)
                             print(f"  - Individual override: {comp_key}.efficiency = {value}")
-                            
-                        elif param_name.startswith('cds') and '_translation_rate' in param_name:
-                            comp_num = param_name.replace('cds', '').replace('_translation_rate', '')
-                            comp_key = f"cds_{comp_num}"
-                            if comp_key not in component_overrides:
-                                component_overrides[comp_key] = {}
-                            component_overrides[comp_key]['translation_rate'] = float(value)
-                            print(f"  - Individual override: {comp_key}.translation_rate = {value}")
                             
                         elif param_name.startswith('cds') and '_degradation_rate' in param_name:
                             comp_num = param_name.replace('cds', '').replace('_degradation_rate', '')
@@ -430,7 +731,6 @@ def simulate():
                                     component_overrides[suffix] = {}
                                 component_overrides[suffix]['n'] = int(float(value))
                             print(f"  - Regulator override: repressor_{comp_num} n = {value}")
-
 
                         elif param_name.startswith('activator') and ('_Ka' in param_name or '_constant' in param_name):
                             comp_num = param_name.replace('activator', '').replace('_Ka', '').replace('_constant', '')
@@ -645,6 +945,28 @@ def simulate():
         #     the param_mapping lookup keys (e.g. "cds3_degradation_rate"), which is
         #     what the frontend baked into comp['parameters'].
         # Override values are written under `comp_name` so the simulator picks them up.
+        # Per-component modal values are reapplied after the base global pass.
+        # Include the same multipliers here, or an edited component silently
+        # loses the global adjustment that unedited components receive.
+        modal_global_factors = {
+            ('promoter', 'strength'): (
+                'global_transcription_rate',
+                'temperature_factor',
+                'resource_availability',
+            ),
+            ('rbs', 'efficiency'): (
+                'global_translation_rate',
+                'resource_availability',
+            ),
+            ('cds', 'translation_rate'): (
+                'global_translation_rate',
+                'temperature_factor',
+            ),
+            ('cds', 'degradation_rate'): (
+                'global_degradation_rate',
+            ),
+        }
+
         for comp in placed_components:
             comp_name = comp['name']
             base_type = comp['base_type']
@@ -669,7 +991,6 @@ def simulate():
                 'promoter':   {f'promoter{modal_num}_strength': 'strength'},
                 'rbs':        {f'rbs{modal_num}_efficiency': 'efficiency'},
                 'cds': {
-                    f'cds{modal_num}_translation_rate': 'translation_rate',
                     f'cds{modal_num}_degradation_rate': 'degradation_rate',
                     f'protein{modal_num}_initial_conc': 'init_conc',
                 },
@@ -677,12 +998,10 @@ def simulate():
                 'repressor_start': {
                     f'repressor{modal_num}_Kr': 'Kr',
                     f'repressor{modal_num}_n': 'n',
-                    
                 },
                 'repressor_end': {
                     f'repressor{modal_num}_Kr': 'Kr',
                     f'repressor{modal_num}_n': 'n',
-                    
                 },
                 'activator_start': {
                     f'activator{modal_num}_Ka': 'Ka',
@@ -738,11 +1057,8 @@ def simulate():
                 if frontend_key in params:
                     try:
                         val = float(params[frontend_key])
-                        
-                        for global_key in modal_global_factors.get(
-                            (base_type, backend_key), ()
-                        ):
-                            try:
+                        for global_key in modal_global_factors.get((base_type, backend_key), ()):
+                            try:          
                                 val *= float(dial_data[global_key])
                             except (KeyError, ValueError, TypeError):
                                 pass
@@ -878,7 +1194,10 @@ def simulate():
             'global_parameters_applied': apply_dial,
             'global_parameters': {k: v for k, v in dial_data.items() if k in ['global_transcription_rate', 'global_translation_rate', 'global_degradation_rate', 'temperature_factor', 'resource_availability']} if apply_dial else {}
         }
-        
+
+        if sweep_metadata:
+            response_data['sweep'] = sweep_metadata
+
         # Add circuit validation messages
         if result.get('regulator_issues'):
             response_data['warnings'].extend([
@@ -1088,7 +1407,8 @@ def get_parameter_defaults():
     
     return jsonify({
         'defaults': defaults,
-        'ranges': PARAMETER_RANGES
+        'ranges': PARAMETER_RANGES,
+        'schema': COMPONENT_PARAMETER_SCHEMA,
     })
 
 @app.route('/interpret_hardware', methods=['POST'])

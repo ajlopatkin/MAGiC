@@ -1,0 +1,71 @@
+<section class="sensitivity-panel" aria-label="Sensitivity analysis">
+    <div class="sensitivity-panel__header">
+        <div class="sensitivity-panel__heading">
+            <span class="sensitivity-panel__eyebrow">Optional analysis</span>
+            <h3>Sensitivity analysis</h3>
+        </div>
+        <button type="button" id="sensitivity-toggle" class="sensitivity-panel__toggle" aria-controls="sensitivity-content" aria-expanded="false" aria-pressed="false">Enable analysis</button>
+    </div>
+    <div id="sensitivity-content" class="sensitivity-panel__content" hidden>
+        <ol class="sensitivity-panel__steps">
+            <li>Press Select component, then click a placed component on the board.</li>
+            <li>Choose one parameter, its lower and upper bounds, and the number of curves (2 to 10).</li>
+            <li>Run the comparison. Every other input in the circuit stays fixed.</li>
+        </ol>
+        <p class="sensitivity-panel__description">Values are evenly spaced and include both endpoints. Cooperativity values must be integers. The x-axis range only changes the display; each simulation always runs the full 0 to 24 range.</p>
+        <p class="sensitivity-panel__description">Running a new comparison replaces the previous comparison. Cancel keeps completed curves. Ordinary Run Simulation does not add curves.</p>
+        <fieldset class="sensitivity-panel__setup">
+            <legend>Comparison setup</legend>
+            <div class="sensitivity-panel__row">
+                <button type="button" id="sensitivity-select" class="sensitivity-panel__action" aria-pressed="false">Select component</button>
+                <span class="sensitivity-panel__target">Component: <strong id="sensitivity-target">None selected</strong></span>
+            </div>
+            <div class="sensitivity-panel__grid">
+                <div class="sensitivity-panel__field">
+                    <label for="sensitivity-parameter">Parameter</label>
+                    <select id="sensitivity-parameter"><option value="">Select a component first</option></select>
+                </div>
+                <div class="sensitivity-panel__field">
+                    <label for="sensitivity-lower">Lower bound</label>
+                    <input type="number" id="sensitivity-lower" step="0.1">
+                </div>
+                <div class="sensitivity-panel__field">
+                    <label for="sensitivity-upper">Upper bound</label>
+                    <input type="number" id="sensitivity-upper" step="0.1">
+                </div>
+                <div class="sensitivity-panel__field">
+                    <label for="sensitivity-curves">Curves (2 to 10)</label>
+                    <input type="number" id="sensitivity-curves" min="2" max="10" step="1" value="5">
+                </div>
+            </div>
+            <p id="sensitivity-preview" class="sensitivity-panel__preview" aria-live="polite">Select a component to preview parameter values.</p>
+            <div class="sensitivity-panel__row">
+                <button type="button" id="sensitivity-start" class="sensitivity-panel__action sensitivity-panel__action--primary">Run comparison</button>
+                <button type="button" id="sensitivity-cancel" class="sensitivity-panel__action" disabled>Cancel</button>
+            </div>
+        </fieldset>
+        <div class="sensitivity-panel__toolbar">
+            <div class="sensitivity-panel__field">
+                <label for="sensitivity-protein">Protein to compare</label>
+                <select id="sensitivity-protein" aria-describedby="sensitivity-status"><option value="">Select a protein</option></select>
+            </div>
+            <div class="sensitivity-panel__field sensitivity-panel__field--axis">
+                <label for="sensitivity-x-min">X-axis display (hours)</label>
+                <div class="sensitivity-panel__axis">
+                    <input type="number" id="sensitivity-x-min" min="0" max="24" step="any" value="0" aria-label="X-axis minimum">
+                    <span>to</span>
+                    <input type="number" id="sensitivity-x-max" min="0" max="24" step="any" value="24" aria-label="X-axis maximum">
+                </div>
+                <label class="sensitivity-panel__check"><input type="checkbox" id="sensitivity-auto-axis" checked> Auto focus where curves differ</label>
+            </div>
+            <span id="sensitivity-count" class="sensitivity-panel__count" aria-live="polite">0 / 10 runs</span>
+        </div>
+        <p id="sensitivity-status" class="sensitivity-panel__status" role="status" aria-live="polite">No curves yet. Select a component to begin.</p>
+        <ul id="sensitivity-runs" class="sensitivity-panel__runs" aria-label="Recorded sensitivity curves" hidden></ul>
+        <img id="sensitivity-plot" class="sensitivity-panel__plot" alt="Sensitivity comparison plot for the selected protein" hidden>
+        <div class="sensitivity-panel__actions">
+            <button type="button" id="sensitivity-remove-last" class="sensitivity-panel__action" disabled>Remove last curve</button>
+            <a id="sensitivity-download" class="sensitivity-panel__action sensitivity-panel__action--download" download="sensitivity-analysis.png" aria-disabled="true">Download PNG</a>
+        </div>
+    </div>
+</section>
